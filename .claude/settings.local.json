@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(rm:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:www.101soundboards.com)",
+      "WebFetch(domain:www.realmofdarkness.net)",
+      "WebFetch(domain:www.soundboard.com)",
+      "WebFetch(domain:jayuzumi.com)",
+      "Bash(./grove-street play:*)",
+      "Bash(git remote:*)"
+    ]
+  }
+}

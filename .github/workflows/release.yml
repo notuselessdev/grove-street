@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          OUTPUT="grove-street_${GOOS}_${GOARCH}${EXT}"
+          go build -ldflags "-s -w -X main.version=${VERSION}" -o "$OUTPUT" ./cmd/grove-street
+          tar -czf "${OUTPUT%.exe}.tar.gz" "$OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grove-street-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: "*.tar.gz"
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Package sounds
+        run: |
+          if [ -d sounds ] && [ "$(ls -A sounds)" ]; then
+            tar -czf sounds.tar.gz -C sounds .
+            cd sounds && zip -r ../sounds.zip . && cd ..
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            *.tar.gz
+            *.zip

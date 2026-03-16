@@ -1,0 +1,68 @@
+{
+  "name": "cj-san-andreas",
+  "display_name": "CJ - GTA San Andreas",
+  "version": "0.1.0",
+  "description": "Carl Johnson voice lines from GTA San Andreas",
+  "categories": {
+    "session_start": {
+      "description": "New coding session begins",
+      "quotes": [
+        "Grove Street. Home. At least it was before I fucked everything up.",
+        "Ah shit, here we go again.",
+        "Let's roll.",
+        "Time to put in work.",
+        "You picked the wrong house, fool!"
+      ]
+    },
+    "task_complete": {
+      "description": "Agent finished work",
+      "quotes": [
+        "Piece of cake!",
+        "Easy!",
+        "Show me the money!",
+        "Nice!",
+        "Look at me now!"
+      ]
+    },
+    "task_error": {
+      "description": "Something went wrong",
+      "quotes": [
+        "Ah shit, here we go again.",
+        "All you had to do was follow the damn train, CJ!",
+        "I hate gravity!",
+        "Shit, this happens too often!",
+        "Are you a professional moron or just a gifted amateur?"
+      ]
+    },
+    "input_required": {
+      "description": "Agent needs your input",
+      "quotes": [
+        "What you want?",
+        "So what's the plan?",
+        "What we gonna do now?",
+        "Say something!",
+        "I need instructions, man!"
+      ]
+    },
+    "resource_limit": {
+      "description": "Context window running low",
+      "quotes": [
+        "I gotta get outta here!",
+        "We runnin' out of time!",
+        "We on fire!",
+        "I can smell burning!",
+        "Gotta go!"
+      ]
+    },
+    "user_spam": {
+      "description": "Too many rapid messages",
+      "quotes": [
+        "Chill, chill!",
+        "Man, chill out!",
+        "Hey, relax!",
+        "Back off!",
+        "Same things make us laugh, make us cry."
+      ]
+    }
+  }
+}
