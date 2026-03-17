@@ -3,5 +3,4 @@
 *.tar.gz
 *.zip
 dist/
-cj_sounds/
 .venv/
