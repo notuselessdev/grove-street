@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <video src="notification-demo.mp4" autoplay loop muted playsinline width="700"></video>
+  <video src="https://github.com/notuselessdev/grove-street/raw/main/notification-demo.mp4" autoplay loop muted playsinline width="700"></video>
 </p>
 
 ---
