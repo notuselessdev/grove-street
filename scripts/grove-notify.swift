@@ -171,24 +171,17 @@ for screen in NSScreen.screens {
     let totalHeight = lineHeight1 + gap + lineHeight2
     let baseY = (winHeight - totalHeight) / 2
 
-    // Line 1 left: sender in project
-    let senderLabel = NSTextField(frame: NSRect(x: textX, y: baseY + lineHeight2 + gap, width: textWidth, height: lineHeight1))
-    senderLabel.stringValue = "\(senderName) in \(projectName)"
-    senderLabel.isBezeled = false
-    senderLabel.drawsBackground = false
-    senderLabel.isEditable = false
-    senderLabel.isSelectable = false
-    senderLabel.textColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.95)
-    senderLabel.font = .boldSystemFont(ofSize: 13.5)
-    senderLabel.lineBreakMode = .byTruncatingTail
-    effectView.addSubview(senderLabel)
-
     // Line 1 right: category label (vertically centered within the sender line)
+    // Measure first so we can constrain the sender label width
+    var catReserved: CGFloat = 0
     if !categoryLabel.isEmpty {
         let catFont = NSFont.systemFont(ofSize: 10.5)
+        let catSize = (categoryLabel as NSString).size(withAttributes: [.font: catFont])
+        let catPad: CGFloat = 4 // extra padding for font rendering
+        catReserved = catSize.width + catPad + 6 // 6px gap between sender and category
         let catH: CGFloat = 14
         let catY = baseY + lineHeight2 + gap + (lineHeight1 - catH) / 2
-        let catLabel = NSTextField(frame: NSRect(x: textX, y: catY, width: textWidth, height: catH))
+        let catLabel = NSTextField(frame: NSRect(x: textX + textWidth - catSize.width - catPad, y: catY, width: catSize.width + catPad, height: catH))
         catLabel.stringValue = categoryLabel
         catLabel.isBezeled = false
         catLabel.drawsBackground = false
@@ -200,6 +193,18 @@ for screen in NSScreen.screens {
         catLabel.lineBreakMode = .byClipping
         effectView.addSubview(catLabel)
     }
+
+    // Line 1 left: sender in project (width reduced to not overlap category)
+    let senderLabel = NSTextField(frame: NSRect(x: textX, y: baseY + lineHeight2 + gap, width: textWidth - catReserved, height: lineHeight1))
+    senderLabel.stringValue = "\(senderName) in \(projectName)"
+    senderLabel.isBezeled = false
+    senderLabel.drawsBackground = false
+    senderLabel.isEditable = false
+    senderLabel.isSelectable = false
+    senderLabel.textColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.95)
+    senderLabel.font = .boldSystemFont(ofSize: 13.5)
+    senderLabel.lineBreakMode = .byTruncatingTail
+    effectView.addSubview(senderLabel)
 
     // Line 2: phrase
     if !phrase.isEmpty {

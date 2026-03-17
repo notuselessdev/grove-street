@@ -105,6 +105,7 @@ func cmdHook() {
 	}
 	player.Play(path, cfg.Volume)
 	notify(filepath.Base(path), category, cfg)
+	maybeAutoUpdate(cfg)
 }
 
 // normalizeEvent converts IDE-specific JSON payloads into a hooks.Event.
@@ -335,29 +336,72 @@ func cmdList() {
 }
 
 // cmdUpdate checks for and applies updates.
+// Pass --silent to suppress all output (used by auto-update).
 func cmdUpdate() {
-	fmt.Println("[CJ] Checking for updates...")
+	silent := len(os.Args) > 2 && os.Args[2] == "--silent"
+
+	if !silent {
+		fmt.Println("[CJ] Checking for updates...")
+	}
 
 	newVersion, err := updater.Check(version)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[CJ] %v\n", err)
-		os.Exit(1)
-	}
-
-	if newVersion == "" {
-		fmt.Println("[CJ] Already up to date (v" + version + ")")
+		if !silent {
+			fmt.Fprintf(os.Stderr, "[CJ] %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
-	fmt.Printf("[CJ] New version available: v%s (current: v%s)\n", newVersion, version)
-	fmt.Println("[CJ] Updating...")
-
-	if err := updater.Apply(newVersion); err != nil {
-		fmt.Fprintf(os.Stderr, "[CJ] Update failed: %v\n", err)
-		os.Exit(1)
+	if newVersion == "" {
+		if !silent {
+			fmt.Println("[CJ] Already up to date (v" + version + ")")
+		}
+		return
 	}
 
-	fmt.Println("[CJ] Updated to v" + newVersion)
+	if !silent {
+		fmt.Printf("[CJ] New version available: v%s (current: v%s)\n", newVersion, version)
+		fmt.Println("[CJ] Updating...")
+	}
+
+	if err := updater.Apply(newVersion); err != nil {
+		if !silent {
+			fmt.Fprintf(os.Stderr, "[CJ] Update failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if !silent {
+		fmt.Println("[CJ] Updated to v" + newVersion)
+	}
+}
+
+// maybeAutoUpdate spawns a background update check at most once per day.
+func maybeAutoUpdate(cfg config.Config) {
+	if !cfg.AutoUpdate {
+		return
+	}
+
+	cooldownFile := filepath.Join(config.DataDir(), ".last-update-check")
+	if data, err := os.ReadFile(cooldownFile); err == nil {
+		if ts, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64); err == nil {
+			if time.Since(time.UnixMilli(ts)) < 24*time.Hour {
+				return
+			}
+		}
+	}
+	os.WriteFile(cooldownFile, []byte(strconv.FormatInt(time.Now().UnixMilli(), 10)), 0644)
+
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	cmd := exec.Command(exe, "update", "--silent")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Start()
 }
 
 // cmdUninstall removes hooks from all known IDE configs.
