@@ -163,8 +163,8 @@ Edit `~/.grove-street/config.json`:
 | Platform | Audio Player | Notifications |
 |----------|-------------|---------------|
 | macOS | `afplay` (built-in) | Native overlay (Swift/Cocoa) |
-| Linux | PipeWire, PulseAudio, FFmpeg, mpv, or ALSA | — |
-| Windows | PowerShell MediaPlayer | — |
+| Linux | PipeWire, PulseAudio, FFmpeg, mpv, or ALSA | Native overlay (Python/GTK3) |
+| Windows | PowerShell MediaPlayer | Native overlay (PowerShell/WPF) |
 
 ## Uninstall
 

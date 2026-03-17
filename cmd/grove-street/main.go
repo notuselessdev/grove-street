@@ -8,7 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/notuselessdev/grove-street/internal/config"
 	"github.com/notuselessdev/grove-street/internal/hooks"
@@ -89,6 +91,10 @@ func cmdHook() {
 
 	category := hooks.Classify(event)
 	if category == "" {
+		return
+	}
+
+	if !acquireCooldown() {
 		return
 	}
 
@@ -651,6 +657,26 @@ func unregisterJSONHooks(path, _ string) {
 
 // --- Helpers ---
 
+// acquireCooldown prevents duplicate notifications fired in quick succession.
+// Returns true if enough time has passed since the last notification (2s).
+// Uses a timestamp file at ~/.grove-street/.last-notification.
+func acquireCooldown() bool {
+	cooldownFile := filepath.Join(config.DataDir(), ".last-notification")
+	const minInterval = 2 * time.Second
+
+	if data, err := os.ReadFile(cooldownFile); err == nil {
+		if ts, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64); err == nil {
+			last := time.UnixMilli(ts)
+			if time.Since(last) < minInterval {
+				return false
+			}
+		}
+	}
+
+	os.WriteFile(cooldownFile, []byte(strconv.FormatInt(time.Now().UnixMilli(), 10)), 0644)
+	return true
+}
+
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
@@ -706,9 +732,22 @@ func installIcon() {
 	}
 }
 
-// installNotifyBinary copies the grove-notify binary to the data directory.
-// If the source is a .swift file, it compiles it first.
+// installNotifyBinary installs the platform-specific notification helper.
+// macOS: compiles grove-notify.swift to a binary.
+// Linux: copies grove-notify.py script.
+// Windows: copies grove-notify.ps1 script.
 func installNotifyBinary() {
+	switch runtime.GOOS {
+	case "darwin":
+		installDarwinNotify()
+	case "linux":
+		installScript("grove-notify.py")
+	case "windows":
+		installScript("grove-notify.ps1")
+	}
+}
+
+func installDarwinNotify() {
 	dest := filepath.Join(config.DataDir(), "grove-notify")
 	if _, err := os.Stat(dest); err == nil {
 		return
@@ -757,22 +796,42 @@ func installNotifyBinary() {
 	}
 }
 
+// installScript copies a notification script to the data directory.
+func installScript(name string) {
+	dest := filepath.Join(config.DataDir(), name)
+	if _, err := os.Stat(dest); err == nil {
+		return
+	}
+
+	binPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	binPath, _ = filepath.EvalSymlinks(binPath)
+	binDir := filepath.Dir(binPath)
+
+	candidates := []string{
+		filepath.Join(binDir, name),
+		filepath.Join(binDir, "..", "share", "grove-street", name),
+		filepath.Join(binDir, "..", "scripts", name),
+	}
+
+	for _, src := range candidates {
+		if data, err := os.ReadFile(src); err == nil {
+			os.MkdirAll(filepath.Dir(dest), 0755)
+			os.WriteFile(dest, data, 0755)
+			return
+		}
+	}
+}
+
 func notify(soundFile string, cfg config.Config) {
 	if !cfg.Notifications {
 		return
 	}
 
-	if runtime.GOOS != "darwin" {
-		return
-	}
-
 	// Voice line phrase from the sound filename
 	phrase := soundToPhrase(soundFile)
-
-	notifyBin := findNotifyBinary()
-	if notifyBin == "" {
-		return
-	}
 
 	iconPath := config.IconPath()
 
@@ -799,12 +858,37 @@ func notify(soundFile string, cfg config.Config) {
 	slotDir := filepath.Join(config.DataDir(), ".notification-slots")
 	slotIndex, slotFile := claimNotificationSlot()
 
-	args := []string{
+	notifyArgs := []string{
 		"Carl Johnson", phrase, iconPath, durationStr, bundleID, projectName, position,
 		fmt.Sprintf("%d", slotIndex), slotDir,
 	}
 
-	cmd := exec.Command(notifyBin, args...)
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		notifyBin := findNotifyBinary("grove-notify")
+		if notifyBin == "" {
+			return
+		}
+		cmd = exec.Command(notifyBin, notifyArgs...)
+	case "linux":
+		script := findNotifyScript("grove-notify.py")
+		if script == "" {
+			return
+		}
+		cmd = exec.Command("python3", append([]string{script}, notifyArgs...)...)
+	case "windows":
+		script := findNotifyScript("grove-notify.ps1")
+		if script == "" {
+			return
+		}
+		cmd = exec.Command("powershell", append([]string{
+			"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
+		}, notifyArgs...)...)
+	default:
+		return
+	}
+
 	cmd.Start()
 
 	// Write the PID into the lock file so future invocations
@@ -847,11 +931,24 @@ func claimNotificationSlot() (int, string) {
 
 // isProcessAlive checks if a process with the given PID string is still running.
 func isProcessAlive(pidStr string) bool {
+	if runtime.GOOS == "windows" {
+		return exec.Command("tasklist", "/FI", "PID eq "+pidStr).Run() == nil
+	}
 	return exec.Command("kill", "-0", pidStr).Run() == nil
 }
 
-// findNotifyBinary locates the grove-notify Swift binary.
-func findNotifyBinary() string {
+// findNotifyBinary locates a compiled notification binary by name.
+func findNotifyBinary(name string) string {
+	return findInPaths(name)
+}
+
+// findNotifyScript locates a notification script by name.
+func findNotifyScript(name string) string {
+	return findInPaths(name)
+}
+
+// findInPaths searches standard locations for a file.
+func findInPaths(name string) string {
 	binPath, err := os.Executable()
 	if err != nil {
 		return ""
@@ -860,13 +957,11 @@ func findNotifyBinary() string {
 	binDir := filepath.Dir(binPath)
 
 	candidates := []string{
-		filepath.Join(binDir, "..", "share", "grove-street", "grove-notify"),
-		filepath.Join(binDir, "grove-notify"),
-		filepath.Join(binDir, "..", "scripts", "grove-notify"),
+		filepath.Join(binDir, "..", "share", "grove-street", name),
+		filepath.Join(binDir, name),
+		filepath.Join(binDir, "..", "scripts", name),
+		filepath.Join(config.DataDir(), name),
 	}
-
-	// Also check data dir
-	candidates = append(candidates, filepath.Join(config.DataDir(), "grove-notify"))
 
 	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {

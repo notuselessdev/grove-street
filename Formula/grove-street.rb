@@ -28,6 +28,8 @@ class GroveStreet < Formula
     bin.install "grove-street"
     (share/"grove-street").install "icon.png" if File.exist?("icon.png")
     (share/"grove-street").install "grove-notify.swift" if File.exist?("grove-notify.swift")
+    (share/"grove-street").install "grove-notify.py" if File.exist?("grove-notify.py")
+    (share/"grove-street").install "grove-notify.ps1" if File.exist?("grove-notify.ps1")
   end
 
   def post_install

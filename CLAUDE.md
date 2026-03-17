@@ -33,6 +33,12 @@ The project is a standard Go CLI with four internal packages:
 - Cross-platform: macOS, Linux, Windows — each with its own audio player detection chain.
 - Hooks are registered in `~/.claude/settings.json` — the `grove-street hook` command receives JSON on stdin from Claude Code.
 
+## Testing Requirements
+
+- **Always run `go test ./...` before committing** to ensure no regressions.
+- **Update or add tests** when modifying or adding functionality. Every package should have a `*_test.go` file with table-driven tests covering its exported and key unexported functions.
+- Tests must not depend on real filesystem state (e.g., `~/.grove-street/config.json`). Use `t.TempDir()` or mock data.
+
 ## Release Process
 
 Tag `v*` triggers `.github/workflows/release.yml` which cross-compiles for darwin/linux/windows (amd64+arm64), packages sounds, and creates a GitHub Release. Homebrew formula is in `Formula/grove-street.rb` (sha256 placeholders need updating per release).

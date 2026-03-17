@@ -45,7 +45,9 @@ jobs:
           go build -ldflags "-s -w -X main.version=${VERSION}" -o "$BINARY" ./cmd/grove-street
           cp assets/icon.png icon.png 2>/dev/null || true
           cp scripts/grove-notify.swift grove-notify.swift 2>/dev/null || true
-          tar -czf "${ARCHIVE}.tar.gz" "$BINARY" icon.png grove-notify.swift
+          cp scripts/grove-notify.py grove-notify.py 2>/dev/null || true
+          cp scripts/grove-notify.ps1 grove-notify.ps1 2>/dev/null || true
+          tar -czf "${ARCHIVE}.tar.gz" "$BINARY" icon.png grove-notify.swift grove-notify.py grove-notify.ps1
 
       - uses: actions/upload-artifact@v4
         with:
