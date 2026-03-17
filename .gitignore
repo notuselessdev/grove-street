@@ -6,3 +6,5 @@ workspace/
 *.tar.gz
 *.zip
 dist/
+promo/node_modules/
+promo/out/
