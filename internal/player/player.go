@@ -53,7 +53,7 @@ func Play(path string, volume float64) {
 }
 
 func playMacOS(path string, volume float64) {
-	vol := fmt.Sprintf("%.0f", volume*255)
+	vol := fmt.Sprintf("%.2f", volume)
 	cmd := exec.Command("afplay", "-v", vol, path)
 	cmd.Start()
 }
