@@ -1,7 +1,7 @@
 class GroveStreet < Formula
   desc "GTA San Andreas CJ voice notifications for AI coding agents"
   homepage "https://github.com/notuselessdev/grove-street"
-  version "0.4.1"
+  version "0.4.2"
   license "MIT"
 
   on_macos do
