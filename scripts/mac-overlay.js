@@ -16,7 +16,7 @@ function run(argv) {
   var bundleId = argv[4] || '';
   var appName = argv[5] || 'GROVE STREET';
 
-  var winWidth = 360, winHeight = 64;
+  var winWidth = 360, winHeight = 76;
 
   $.NSApplication.sharedApplication;
   $.NSApp.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
@@ -116,10 +116,25 @@ function run(argv) {
       }
     }
 
-    // Title
-    var titleFont = $.NSFont.boldSystemFontOfSize(13);
-    var titleHeight = 17;
-    var titleY = message ? winHeight - titleHeight - 14 : (winHeight - titleHeight) / 2;
+    // App/project name — top line, like native macOS notification app name
+    var appFont = $.NSFont.boldSystemFontOfSize(11);
+    var appNameLabel = $.NSTextField.alloc.initWithFrame(
+      $.NSMakeRect(textX, winHeight - 18, textWidth, 14)
+    );
+    appNameLabel.setStringValue($(appName));
+    appNameLabel.setBezeled(false);
+    appNameLabel.setDrawsBackground(false);
+    appNameLabel.setEditable(false);
+    appNameLabel.setSelectable(false);
+    appNameLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.7));
+    appNameLabel.setFont(appFont);
+    appNameLabel.setLineBreakMode($.NSLineBreakByTruncatingTail);
+    effectView.addSubview(appNameLabel);
+
+    // Title — main line, bold
+    var titleFont = $.NSFont.boldSystemFontOfSize(14);
+    var titleHeight = 18;
+    var titleY = winHeight - 18 - titleHeight - 2;
     var titleLabel = $.NSTextField.alloc.initWithFrame(
       $.NSMakeRect(textX, titleY, textWidth, titleHeight)
     );
@@ -134,38 +149,23 @@ function run(argv) {
     titleLabel.cell.setWraps(false);
     effectView.addSubview(titleLabel);
 
-    // Subtitle
+    // Subtitle — sound phrase
     if (message) {
       var msgFont = $.NSFont.systemFontOfSize(12);
       var msgLabel = $.NSTextField.alloc.initWithFrame(
-        $.NSMakeRect(textX, titleY - 18, textWidth, 16)
+        $.NSMakeRect(textX, titleY - 17, textWidth, 16)
       );
       msgLabel.setStringValue($(message));
       msgLabel.setBezeled(false);
       msgLabel.setDrawsBackground(false);
       msgLabel.setEditable(false);
       msgLabel.setSelectable(false);
-      msgLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.6));
+      msgLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.55));
       msgLabel.setFont(msgFont);
       msgLabel.setLineBreakMode($.NSLineBreakByTruncatingTail);
       msgLabel.cell.setWraps(false);
       effectView.addSubview(msgLabel);
     }
-
-    // App name label top-right (like native notifications show the app name)
-    var appFont = $.NSFont.systemFontOfSize(11);
-    var appLabel = $.NSTextField.alloc.initWithFrame(
-      $.NSMakeRect(winWidth - 110, winHeight - 17, 96, 14)
-    );
-    appLabel.setStringValue($(appName));
-    appLabel.setBezeled(false);
-    appLabel.setDrawsBackground(false);
-    appLabel.setEditable(false);
-    appLabel.setSelectable(false);
-    appLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.35));
-    appLabel.setAlignment($.NSTextAlignmentRight);
-    appLabel.setFont(appFont);
-    effectView.addSubview(appLabel);
 
     // Transparent click button
     var btn = $.NSButton.alloc.initWithFrame($.NSMakeRect(0, 0, winWidth, winHeight));
