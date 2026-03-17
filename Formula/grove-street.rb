@@ -7,20 +7,20 @@ class GroveStreet < Formula
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/notuselessdev/grove-street/releases/download/v#{version}/grove-street_darwin_arm64.tar.gz"
-      sha256 "9e02279e5f7d56f97ddeab32bbf9d028cbed843789232b17e700e2e35c187d84"
+      sha256 "c4b639e61f38f8560c78bf4c392afbdc83385a93887eac606b946376fc65096c"
     else
       url "https://github.com/notuselessdev/grove-street/releases/download/v#{version}/grove-street_darwin_amd64.tar.gz"
-      sha256 "d5f78c913e77fb5bfdd95b0647d225e44ae76a6f2fbcee5379acfd098ecc598c"
+      sha256 "d26dfff7f5b723a225d9c182a2b62aed0269389a2f1dc2a417828a749e38a0e1"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
       url "https://github.com/notuselessdev/grove-street/releases/download/v#{version}/grove-street_linux_arm64.tar.gz"
-      sha256 "1f845d07465d51b00be62699453ffdf09c60476c8a4797b27e90957967adda7c"
+      sha256 "93e7eef4fd9a817b58006b2a83d8be6202f8efb381408ca81363c261a7b118d9"
     else
       url "https://github.com/notuselessdev/grove-street/releases/download/v#{version}/grove-street_linux_amd64.tar.gz"
-      sha256 "db4acda74c674776c63a9fcfc7ece547315ab0d3d6b835a1d3b883013cd0ce76"
+      sha256 "2ce711169708e187060ac7dac3ff49de68954b0eebf41b5aee735170ac819f31"
     end
   end
 
