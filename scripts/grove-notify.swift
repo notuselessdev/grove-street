@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 // grove-notify.swift — Native macOS notification overlay for Grove Street
-// Usage: grove-notify <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir>
+// Usage: grove-notify <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label]
 //
 // Positions: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center
 
@@ -16,8 +16,9 @@ let dismiss      = args.count > 3 ? Double(args[3]) ?? 4 : 4
 let bundleId     = args.count > 4 ? args[4] : ""
 let projectName  = args.count > 5 ? args[5] : "grove-street"
 let position     = args.count > 6 ? args[6] : "top-right"
-var slotIndex    = args.count > 7 ? Int(args[7]) ?? 0 : 0
-let slotDir      = args.count > 8 ? args[8] : ""
+var slotIndex       = args.count > 7 ? Int(args[7]) ?? 0 : 0
+let slotDir         = args.count > 8 ? args[8] : ""
+let categoryLabel   = args.count > 9 ? args[9] : ""
 
 let winWidth: CGFloat = 360
 let winHeight: CGFloat = 68
@@ -170,7 +171,7 @@ for screen in NSScreen.screens {
     let totalHeight = lineHeight1 + gap + lineHeight2
     let baseY = (winHeight - totalHeight) / 2
 
-    // Line 1: sender in project
+    // Line 1 left: sender in project
     let senderLabel = NSTextField(frame: NSRect(x: textX, y: baseY + lineHeight2 + gap, width: textWidth, height: lineHeight1))
     senderLabel.stringValue = "\(senderName) in \(projectName)"
     senderLabel.isBezeled = false
@@ -181,6 +182,24 @@ for screen in NSScreen.screens {
     senderLabel.font = .boldSystemFont(ofSize: 13.5)
     senderLabel.lineBreakMode = .byTruncatingTail
     effectView.addSubview(senderLabel)
+
+    // Line 1 right: category label (vertically centered within the sender line)
+    if !categoryLabel.isEmpty {
+        let catFont = NSFont.systemFont(ofSize: 10.5)
+        let catH: CGFloat = 14
+        let catY = baseY + lineHeight2 + gap + (lineHeight1 - catH) / 2
+        let catLabel = NSTextField(frame: NSRect(x: textX, y: catY, width: textWidth, height: catH))
+        catLabel.stringValue = categoryLabel
+        catLabel.isBezeled = false
+        catLabel.drawsBackground = false
+        catLabel.isEditable = false
+        catLabel.isSelectable = false
+        catLabel.textColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.6)
+        catLabel.font = catFont
+        catLabel.alignment = .right
+        catLabel.lineBreakMode = .byClipping
+        effectView.addSubview(catLabel)
+    }
 
     // Line 2: phrase
     if !phrase.isEmpty {
@@ -197,11 +216,12 @@ for screen in NSScreen.screens {
         effectView.addSubview(msgLabel)
     }
 
-    // Click button
+    // Click button (transparent look, but NOT .isTransparent which disables hit-testing)
     let btn = NSButton(frame: NSRect(x: 0, y: 0, width: winWidth, height: winHeight))
     btn.title = ""
     btn.isBordered = false
-    btn.isTransparent = true
+    btn.isTransparent = false
+    btn.alphaValue = 0.001
     btn.target = nil
     btn.action = #selector(NSApplication.terminate(_:))
     effectView.addSubview(btn)

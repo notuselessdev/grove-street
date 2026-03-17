@@ -100,10 +100,11 @@ func cmdHook() {
 
 	path := player.Pick(category, cfg)
 	if path == "" {
+		warnNoSounds(category, cfg)
 		return
 	}
 	player.Play(path, cfg.Volume)
-	notify(filepath.Base(path), cfg)
+	notify(filepath.Base(path), category, cfg)
 }
 
 // normalizeEvent converts IDE-specific JSON payloads into a hooks.Event.
@@ -223,6 +224,16 @@ func cmdSetup() {
 	}
 	// Don't resolve symlinks — keep the stable /opt/homebrew/bin/ path
 
+	// Detect Homebrew sandbox: post_install runs without HOME write access.
+	// Skip hook registration and tell the user to run setup manually.
+	if os.Getenv("HOMEBREW_BREW_FILE") != "" || os.Getenv("HOMEBREW_PREFIX") != "" {
+		fmt.Println("[CJ] Running inside Homebrew — skipping hook registration.")
+		fmt.Println("[CJ] Run 'grove-street setup' in your terminal to register hooks.")
+		fmt.Println()
+		fmt.Println("[CJ] Grove Street. Home. CJ is watching your terminal now.")
+		return
+	}
+
 	// Register hooks for IDEs
 	type ideInfo struct {
 		name      string
@@ -238,6 +249,7 @@ func cmdSetup() {
 		{"Kiro", kiroConfigDir(), func(bin string) error { return registerKiroHooks(bin) }},
 	}
 
+	anyRegistered := false
 	for _, ide := range allIDEs {
 		if targetIDE != "" && !strings.EqualFold(ide.name, targetIDE) {
 			continue
@@ -249,7 +261,12 @@ func cmdSetup() {
 			fmt.Fprintf(os.Stderr, "[CJ] Failed to register hooks for %s: %v\n", ide.name, err)
 		} else {
 			fmt.Printf("[CJ] Hooks registered for %s\n", ide.name)
+			anyRegistered = true
 		}
+	}
+
+	if !anyRegistered && targetIDE == "" {
+		fmt.Fprintln(os.Stderr, "[CJ] No IDE config directories found. Run 'grove-street setup' after opening your IDE at least once.")
 	}
 
 	fmt.Println()
@@ -275,7 +292,7 @@ func cmdPlay() {
 
 	fmt.Printf("Playing: %s\n", filepath.Base(path))
 	player.Play(path, cfg.Volume)
-	notify(filepath.Base(path), cfg)
+	notify(filepath.Base(path), category, cfg)
 }
 
 // cmdList lists all sounds organized by category.
@@ -657,6 +674,26 @@ func unregisterJSONHooks(path, _ string) {
 
 // --- Helpers ---
 
+// warnNoSounds fires a one-time notification telling the user their sound
+// directory for the given category is empty. Shown at most once per day via
+// a dedicated cooldown file so it doesn't spam on every hook.
+func warnNoSounds(category string, cfg config.Config) {
+	cooldownFile := filepath.Join(config.DataDir(), ".warn-no-sounds")
+	if data, err := os.ReadFile(cooldownFile); err == nil {
+		if t, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data))); err == nil {
+			if time.Since(t) < 24*time.Hour {
+				return
+			}
+		}
+	}
+	os.WriteFile(cooldownFile, []byte(time.Now().Format(time.RFC3339)), 0644)
+
+	dir := filepath.Join(config.SoundsDir(), category)
+	msg := fmt.Sprintf("No sounds in %s — add .mp3/.wav files to %s", category, dir)
+	fmt.Fprintln(os.Stderr, "[CJ]", msg)
+	notify("⚠️  "+msg, "", cfg)
+}
+
 // acquireCooldown prevents duplicate notifications fired in quick succession.
 // Returns true if enough time has passed since the last notification (2s).
 // Uses a timestamp file at ~/.grove-street/.last-notification.
@@ -772,6 +809,7 @@ func installDarwinNotify() {
 			if data, err := os.ReadFile(src); err == nil {
 				os.MkdirAll(filepath.Dir(dest), 0755)
 				os.WriteFile(dest, data, 0755)
+				exec.Command("codesign", "--sign", "-", "--force", dest).Run()
 				return
 			}
 		}
@@ -789,6 +827,7 @@ func installDarwinNotify() {
 			os.MkdirAll(filepath.Dir(dest), 0755)
 			cmd := exec.Command("swiftc", "-O", "-o", dest, src, "-framework", "Cocoa")
 			if err := cmd.Run(); err == nil {
+				exec.Command("codesign", "--sign", "-", "--force", dest).Run()
 				fmt.Println("[CJ] Compiled notification overlay")
 				return
 			}
@@ -825,7 +864,23 @@ func installScript(name string) {
 	}
 }
 
-func notify(soundFile string, cfg config.Config) {
+// categoryLabel converts a category key to a human-readable label.
+func categoryLabel(category string) string {
+	labels := map[string]string{
+		"task_complete":  "Task Complete",
+		"task_error":     "Task Error",
+		"input_required": "Input Required",
+		"resource_limit": "Resource Limit",
+		"session_start":  "Session Start",
+		"user_spam":      "Chill Out",
+	}
+	if l, ok := labels[category]; ok {
+		return l
+	}
+	return ""
+}
+
+func notify(soundFile string, category string, cfg config.Config) {
 	if !cfg.Notifications {
 		return
 	}
@@ -860,7 +915,7 @@ func notify(soundFile string, cfg config.Config) {
 
 	notifyArgs := []string{
 		"Carl Johnson", phrase, iconPath, durationStr, bundleID, projectName, position,
-		fmt.Sprintf("%d", slotIndex), slotDir,
+		fmt.Sprintf("%d", slotIndex), slotDir, categoryLabel(category),
 	}
 
 	var cmd *exec.Cmd
@@ -982,6 +1037,9 @@ func detectParentApp() string {
 	}
 	if os.Getenv("TERM_PROGRAM") == "vscode" {
 		return "com.microsoft.VSCode"
+	}
+	if os.Getenv("TERM_PROGRAM") == "WarpTerminal" {
+		return "dev.warp.Warp-Stable"
 	}
 	if os.Getenv("CURSOR_TRACE_ID") != "" {
 		return "com.todesktop.230313mzl4w4u92"

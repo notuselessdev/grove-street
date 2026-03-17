@@ -166,5 +166,5 @@ func playWindows(path string, volume float64) {
 
 func isAudio(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
-	return ext == ".wav" || ext == ".mp3" || ext == ".ogg"
+	return ext == ".wav" || ext == ".mp3" || ext == ".ogg" || ext == ".aiff" || ext == ".aif"
 }
