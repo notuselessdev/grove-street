@@ -143,3 +143,20 @@ Write-Host "    grove-street list                  # See all sounds"
 Write-Host "    grove-street update                # Check for updates"
 Write-Host "    grove-street help                  # Full help"
 Write-Host ""
+Write-Host "  -------------------------------------------------------" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  🎮 Enjoying Grove Street? Help CJ spread the word!" -ForegroundColor Green
+Write-Host ""
+Write-Host "  ⭐ Give us a star: " -ForegroundColor Cyan -NoNewline
+Write-Host "https://github.com/notuselessdev/grove-street"
+Write-Host "  🐦 Share on X:     " -ForegroundColor Cyan -NoNewline
+Write-Host "https://x.com/intent/tweet?text=Just%20installed%20Grove%20Street%20%E2%80%94%20CJ%20from%20GTA%20San%20Andreas%20now%20narrates%20my%20AI%20coding%20agent%20%F0%9F%8E%AE%F0%9F%94%8A&url=https://github.com/notuselessdev/grove-street"
+Write-Host "  🌐 Website:        " -ForegroundColor Cyan -NoNewline
+Write-Host "https://notuseless.dev"
+Write-Host "  👤 Follow the dev: " -ForegroundColor Cyan -NoNewline
+Write-Host "https://x.com/notuselessdev"
+Write-Host "  🐛 Report issues:  " -ForegroundColor Cyan -NoNewline
+Write-Host "https://github.com/notuselessdev/grove-street/issues"
+Write-Host ""
+Write-Host '  "Respect is everything, CJ." 🫡' -ForegroundColor Yellow
+Write-Host ""

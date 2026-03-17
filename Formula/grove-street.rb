@@ -57,6 +57,14 @@ class GroveStreet < Formula
 
       Categories: session_start, task_complete, task_error,
                   input_required, resource_limit, user_spam
+
+      🎮 Enjoying Grove Street? Help CJ spread the word!
+
+        ⭐ Give us a star: https://github.com/notuselessdev/grove-street
+        🌐 Website:        https://notuseless.dev
+        👤 Follow the dev: https://x.com/notuselessdev
+
+      "Respect is everything, CJ." 🫡
     EOS
   end
 

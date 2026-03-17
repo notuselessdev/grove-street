@@ -228,6 +228,18 @@ main() {
     echo "    grove-street update                # Check for updates"
     echo "    grove-street help                  # Full help"
     echo ""
+    echo -e "  ${YELLOW}-------------------------------------------------------${NC}"
+    echo ""
+    echo -e "  ${GREEN}🎮 Enjoying Grove Street? Help CJ spread the word!${NC}"
+    echo ""
+    echo -e "  ${CYAN}⭐ Give us a star:${NC} https://github.com/notuselessdev/grove-street"
+    echo -e "  ${CYAN}🐦 Share on X:${NC}     https://x.com/intent/tweet?text=Just%20installed%20Grove%20Street%20%E2%80%94%20CJ%20from%20GTA%20San%20Andreas%20now%20narrates%20my%20AI%20coding%20agent%20%F0%9F%8E%AE%F0%9F%94%8A&url=https://github.com/notuselessdev/grove-street"
+    echo -e "  ${CYAN}🌐 Website:${NC}        https://notuseless.dev"
+    echo -e "  ${CYAN}👤 Follow the dev:${NC} https://x.com/notuselessdev"
+    echo -e "  ${CYAN}🐛 Report issues:${NC}  https://github.com/notuselessdev/grove-street/issues"
+    echo ""
+    echo -e "  ${YELLOW}\"Respect is everything, CJ.\" 🫡${NC}"
+    echo ""
 }
 
 main "$@"
