@@ -853,7 +853,7 @@ func installDarwinNotify() {
 			if data, err := os.ReadFile(src); err == nil {
 				os.MkdirAll(filepath.Dir(dest), 0755)
 				os.WriteFile(dest, data, 0755)
-				exec.Command("codesign", "--sign", "-", "--force", dest).Run()
+				signBinary(dest)
 				return
 			}
 		}
@@ -871,12 +871,35 @@ func installDarwinNotify() {
 			os.MkdirAll(filepath.Dir(dest), 0755)
 			cmd := exec.Command("swiftc", "-O", "-o", dest, src, "-framework", "Cocoa")
 			if err := cmd.Run(); err == nil {
-				exec.Command("codesign", "--sign", "-", "--force", dest).Run()
+				signBinary(dest)
 				fmt.Println("[CJ] Compiled notification overlay")
 				return
 			}
 		}
 	}
+}
+
+// signBinary signs a macOS binary. It tries to find a real developer identity
+// first (required on macOS 26+), falling back to ad-hoc signing.
+func signBinary(path string) {
+	// Try to find a real Apple Development identity
+	out, err := exec.Command("security", "find-identity", "-v", "-p", "codesigning").Output()
+	if err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, "Apple Development:") {
+				// Extract the hash (first quoted 40-char hex token)
+				parts := strings.Fields(line)
+				for _, p := range parts {
+					if len(p) == 40 {
+						exec.Command("codesign", "--force", "--sign", p, path).Run()
+						return
+					}
+				}
+			}
+		}
+	}
+	// Fall back to ad-hoc
+	exec.Command("codesign", "--sign", "-", "--force", path).Run()
 }
 
 // installScript copies a notification script to the data directory.
