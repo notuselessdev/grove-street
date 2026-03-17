@@ -1,6 +1,7 @@
 /grove-street
 scripts/grove-notify
 workspace/
+.claude/settings.local.json
 *.exe
 *.tar.gz
 *.zip
