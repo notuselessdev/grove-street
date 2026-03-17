@@ -1,5 +1,5 @@
 # grove-notify.ps1 — Native Windows notification overlay for Grove Street
-# Usage: powershell -File grove-notify.ps1 <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label]
+# Usage: powershell -File grove-notify.ps1 <sender> <phrase> <icon_path> <dismiss_seconds> <project_name> <position> <slot_index> <slot_dir> [category_label]
 #
 # Positions: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center
 
@@ -8,7 +8,6 @@ param(
     [string]$Phrase = "",
     [string]$IconPath = "",
     [double]$DismissSecs = 4,
-    [string]$BundleId = "",
     [string]$ProjectName = "grove-street",
     [string]$Position = "top-right",
     [int]$SlotIndex = 0,
@@ -225,25 +224,7 @@ $origin = Get-NotificationOrigin $SlotIndex
 $window.Left = $origin.X
 $window.Top = $origin.Y
 
-# Capture foreground window at launch for click-to-focus
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class WinAPI {
-    [DllImport("user32.dll")]
-    public static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("user32.dll")]
-    public static extern IntPtr GetForegroundWindow();
-}
-"@
-
-$foregroundAtLaunch = [WinAPI]::GetForegroundWindow()
-
 $window.Add_MouseLeftButtonDown({
-    # Restore the window that was active when the notification launched
-    if ($foregroundAtLaunch -ne [IntPtr]::Zero) {
-        [WinAPI]::SetForegroundWindow($foregroundAtLaunch) | Out-Null
-    }
     Remove-Slot
     $window.Close()
 })

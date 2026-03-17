@@ -927,30 +927,26 @@ func categoryLabel(category string) string {
 // buildNotifyArgs constructs the argument list passed to grove-notify (all platforms).
 // Arg order must stay in sync with grove-notify.swift / grove-notify.py / grove-notify.ps1.
 //
-//	[0] sender       — "Carl Johnson"
-//	[1] phrase       — voice line text
-//	[2] iconPath     — path to icon image
-//	[3] duration     — dismiss seconds as "N.N"
-//	[4] bundleID     — macOS bundle ID (unused on Linux/Windows)
-//	[5] projectName  — directory name of cwd
-//	[6] position     — e.g. "top-right"
-//	[7] slotIndex    — notification stack slot as string
-//	[8] slotDir      — path to slot lock directory
-//	[9] categoryLabel — human label e.g. "Task Complete"
-//	[10] appPID      — PID to focus on click (macOS only)
-func buildNotifyArgs(phrase, iconPath, bundleID, projectName, position, slotDir string, slotIndex int, duration float64, category string, appPID int32) []string {
+//	[0] sender        — "Carl Johnson"
+//	[1] phrase        — voice line text
+//	[2] iconPath      — path to icon image
+//	[3] duration      — dismiss seconds as "N.N"
+//	[4] projectName   — directory name of cwd (display only)
+//	[5] position      — e.g. "top-right"
+//	[6] slotIndex     — notification stack slot as string
+//	[7] slotDir       — path to slot lock directory
+//	[8] categoryLabel — human label e.g. "Task Complete"
+func buildNotifyArgs(phrase, iconPath, projectName, position, slotDir string, slotIndex int, duration float64, category string) []string {
 	return []string{
 		"Carl Johnson",
 		phrase,
 		iconPath,
 		fmt.Sprintf("%.1f", duration),
-		bundleID,
 		projectName,
 		position,
 		fmt.Sprintf("%d", slotIndex),
 		slotDir,
 		categoryLabel(category),
-		fmt.Sprintf("%d", appPID),
 	}
 }
 
@@ -963,9 +959,6 @@ func notify(soundFile string, category string, cfg config.Config) {
 	phrase := soundToPhrase(soundFile)
 
 	iconPath := config.IconPath()
-
-	// Detect which app and exact window to focus on click
-	bundleID, appPID := detectParentApp()
 
 	// Project name from current working directory
 	projectName := "grove-street"
@@ -986,7 +979,7 @@ func notify(soundFile string, category string, cfg config.Config) {
 	slotDir := filepath.Join(config.DataDir(), ".notification-slots")
 	slotIndex, slotFile := claimNotificationSlot()
 
-	notifyArgs := buildNotifyArgs(phrase, iconPath, bundleID, projectName, position, slotDir, slotIndex, duration, category, appPID)
+	notifyArgs := buildNotifyArgs(phrase, iconPath, projectName, position, slotDir, slotIndex, duration, category)
 
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
@@ -1098,69 +1091,3 @@ func findInPaths(name string) string {
 
 // detectParentApp walks the process tree to find the IDE/terminal that launched
 // this hook. Returns the bundle ID and the PID of the matched process so
-// grove-notify can activate the exact window (important when multiple windows
-// of the same app are open).
-func detectParentApp() (bundleID string, pid int32) {
-	type ideMatch struct {
-		substr   string
-		bundleID string
-	}
-	ides := []ideMatch{
-		{"Cursor", "com.todesktop.230313mzl4w4u92"},
-		{"cursor", "com.todesktop.230313mzl4w4u92"},
-		{"Code", "com.microsoft.VSCode"},
-		{"Windsurf", "com.codeium.windsurf"},
-		{"iTerm2", "com.googlecode.iterm2"},
-		{"Warp", "dev.warp.Warp-Stable"},
-		{"Terminal", "com.apple.Terminal"},
-	}
-
-	current := os.Getpid()
-	for i := 0; i < 12; i++ {
-		ppid, name := parentProcessInfo(current)
-		if ppid <= 1 || name == "" {
-			break
-		}
-		for _, ide := range ides {
-			if strings.Contains(name, ide.substr) {
-				return ide.bundleID, int32(ppid)
-			}
-		}
-		current = ppid
-	}
-
-	// Fallback to environment variables
-	switch os.Getenv("TERM_PROGRAM") {
-	case "iTerm.app":
-		return "com.googlecode.iterm2", 0
-	case "Apple_Terminal":
-		return "com.apple.Terminal", 0
-	case "vscode":
-		return "com.microsoft.VSCode", 0
-	case "WarpTerminal":
-		return "dev.warp.Warp-Stable", 0
-	}
-	if os.Getenv("CURSOR_TRACE_ID") != "" {
-		return "com.todesktop.230313mzl4w4u92", 0
-	}
-	return "com.apple.Terminal", 0
-}
-
-// parentProcessInfo returns the parent PID and a searchable string combining
-// the process name and full executable path for the given PID.
-func parentProcessInfo(pid int) (ppid int, name string) {
-	// Use command= (full path) so we can match "Warp" in /Applications/Warp.app/...
-	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "ppid=,command=").Output()
-	if err != nil {
-		return 0, ""
-	}
-	line := strings.TrimSpace(string(out))
-	fields := strings.Fields(line)
-	if len(fields) < 2 {
-		return 0, ""
-	}
-	ppid, _ = strconv.Atoi(fields[0])
-	// Use first token of command (the executable path) for matching
-	name = fields[1]
-	return
-}

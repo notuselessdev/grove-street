@@ -197,13 +197,6 @@ func TestMapKiroEvent(t *testing.T) {
 	}
 }
 
-func TestDetectParentApp(t *testing.T) {
-	// Default should return some bundle ID
-	got, _ := detectParentApp()
-	if got == "" {
-		t.Error("detectParentApp() returned empty string")
-	}
-}
 
 func TestContainsGroveStreet(t *testing.T) {
 	tests := []struct {
@@ -435,22 +428,19 @@ func TestBuildNotifyArgs(t *testing.T) {
 	args := buildNotifyArgs(
 		"Ah shit here we go again",
 		"/home/user/.grove-street/icon.png",
-		"com.todesktop.230313mzl4w4u92",
 		"my-project",
 		"top-right",
 		"/home/user/.grove-street/.notification-slots",
 		2,
 		7.0,
 		"task_complete",
-		12345,
 	)
 
 	// Arg count must match what all three notify scripts expect
-	if len(args) != 11 {
-		t.Fatalf("buildNotifyArgs returned %d args, want 11", len(args))
+	if len(args) != 9 {
+		t.Fatalf("buildNotifyArgs returned %d args, want 9", len(args))
 	}
 
-	// Verify each positional arg
 	checks := []struct {
 		idx  int
 		name string
@@ -460,13 +450,11 @@ func TestBuildNotifyArgs(t *testing.T) {
 		{1, "phrase", "Ah shit here we go again"},
 		{2, "iconPath", "/home/user/.grove-street/icon.png"},
 		{3, "duration", "7.0"},
-		{4, "bundleID", "com.todesktop.230313mzl4w4u92"},
-		{5, "projectName", "my-project"},
-		{6, "position", "top-right"},
-		{7, "slotIndex", "2"},
-		{8, "slotDir", "/home/user/.grove-street/.notification-slots"},
-		{9, "categoryLabel", "Task Complete"},
-		{10, "appPID", "12345"},
+		{4, "projectName", "my-project"},
+		{5, "position", "top-right"},
+		{6, "slotIndex", "2"},
+		{7, "slotDir", "/home/user/.grove-street/.notification-slots"},
+		{8, "categoryLabel", "Task Complete"},
 	}
 
 	for _, c := range checks {
@@ -477,12 +465,9 @@ func TestBuildNotifyArgs(t *testing.T) {
 }
 
 func TestBuildNotifyArgsDefaults(t *testing.T) {
-	// Empty category should produce empty label, zero PID should be "0"
-	args := buildNotifyArgs("phrase", "", "", "proj", "top-right", "", 0, 4.0, "", 0)
-	if args[9] != "" {
-		t.Errorf("args[9] (categoryLabel) = %q, want empty for unknown category", args[9])
-	}
-	if args[10] != "0" {
-		t.Errorf("args[10] (appPID) = %q, want \"0\"", args[10])
+	// Empty category should produce empty label
+	args := buildNotifyArgs("phrase", "", "proj", "top-right", "", 0, 4.0, "")
+	if args[8] != "" {
+		t.Errorf("args[8] (categoryLabel) = %q, want empty for unknown category", args[8])
 	}
 }

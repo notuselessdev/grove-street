@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """grove-notify.py — Native Linux notification overlay for Grove Street.
 
-Usage: grove-notify.py <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label]
+Usage: grove-notify.py <sender> <phrase> <icon_path> <dismiss_seconds> <project_name> <position> <slot_index> <slot_dir> [category_label]
 
 Positions: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center
 """
@@ -22,29 +22,17 @@ sender_name = args[0] if len(args) > 0 else "Carl Johnson"
 phrase = args[1] if len(args) > 1 else ""
 icon_path = args[2] if len(args) > 2 else ""
 dismiss_secs = float(args[3]) if len(args) > 3 else 4.0
-bundle_id = args[4] if len(args) > 4 else ""  # unused on Linux
-project_name = args[5] if len(args) > 5 else "grove-street"
-position = args[6] if len(args) > 6 else "top-right"
-slot_index = int(args[7]) if len(args) > 7 else 0
-slot_dir = args[8] if len(args) > 8 else ""
-category_label = args[9] if len(args) > 9 else ""
+project_name = args[4] if len(args) > 4 else "grove-street"
+position = args[5] if len(args) > 5 else "top-right"
+slot_index = int(args[6]) if len(args) > 6 else 0
+slot_dir = args[7] if len(args) > 7 else ""
+category_label = args[8] if len(args) > 8 else ""
 
 WIN_WIDTH = 360
 WIN_HEIGHT = 68
 CORNER_R = 16
 MARGIN = 12
 MY_PID = os.getpid()
-
-# Capture the active window ID at launch (before our window appears) for click-to-focus
-def _get_active_window_id():
-    try:
-        import subprocess
-        result = subprocess.run(["xdotool", "getactivewindow"], capture_output=True, text=True)
-        return result.stdout.strip()
-    except Exception:
-        return ""
-
-ACTIVE_WIN_AT_LAUNCH = _get_active_window_id()
 
 # --- Slot management ---
 
@@ -279,8 +267,6 @@ class NotificationWindow(Gtk.Window):
         return True  # keep timer running
 
     def _on_click(self, widget, event):
-        # Try to focus parent app using wmctrl or xdotool
-        _try_focus_parent()
         self._dismiss()
 
     def _dismiss(self):
@@ -289,10 +275,6 @@ class NotificationWindow(Gtk.Window):
         return False
 
 
-def _try_focus_parent():
-    """Restore focus to the window that was active when the notification launched."""
-    if ACTIVE_WIN_AT_LAUNCH:
-        os.system(f"xdotool windowactivate {ACTIVE_WIN_AT_LAUNCH} 2>/dev/null")
 
 
 def main():

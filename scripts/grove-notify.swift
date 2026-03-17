@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 // grove-notify.swift — Native macOS notification overlay for Grove Street
-// Usage: grove-notify <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label] [app_pid]
+// Usage: grove-notify <sender> <phrase> <icon_path> <dismiss_seconds> <project_name> <position> <slot_index> <slot_dir> [category_label]
 //
 // Positions: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center
 
@@ -9,17 +9,15 @@ import Cocoa
 // MARK: - Args
 
 let args = CommandLine.arguments.dropFirst().map { $0 }
-let senderName  = args.count > 0 ? args[0] : "Carl Johnson"
-let phrase       = args.count > 1 ? args[1] : ""
-let iconPath     = args.count > 2 ? args[2] : ""
-let dismiss      = args.count > 3 ? Double(args[3]) ?? 4 : 4
-let bundleId     = args.count > 4 ? args[4] : ""
-let projectName  = args.count > 5 ? args[5] : "grove-street"
-let position     = args.count > 6 ? args[6] : "top-right"
-var slotIndex       = args.count > 7 ? Int(args[7]) ?? 0 : 0
-let slotDir         = args.count > 8 ? args[8] : ""
-let categoryLabel   = args.count > 9 ? args[9] : ""
-let appPid          = args.count > 10 ? pid_t(args[10]) ?? 0 : 0
+let senderName    = args.count > 0 ? args[0] : "Carl Johnson"
+let phrase        = args.count > 1 ? args[1] : ""
+let iconPath      = args.count > 2 ? args[2] : ""
+let dismiss       = args.count > 3 ? Double(args[3]) ?? 4 : 4
+let projectName   = args.count > 4 ? args[4] : "grove-street"
+let position      = args.count > 5 ? args[5] : "top-right"
+var slotIndex     = args.count > 6 ? Int(args[6]) ?? 0 : 0
+let slotDir       = args.count > 7 ? args[7] : ""
+let categoryLabel = args.count > 8 ? args[8] : ""
 
 let winWidth: CGFloat = 360
 let winHeight: CGFloat = 68
@@ -93,26 +91,10 @@ func calcOrigin(visibleFrame vf: NSRect, slot: Int) -> NSPoint {
     return NSPoint(x: x, y: y)
 }
 
-// MARK: - Click handler to focus app
-
-// Capture the frontmost app right now, before our notification appears.
-// Since we run as .accessory, we don't steal focus — so this is the IDE the user was in.
-let frontmostAtLaunch: NSRunningApplication? = NSWorkspace.shared.frontmostApplication
-
-var userClicked = false
+// MARK: - Click handler
 
 class ClickHandler: NSObject {
     @objc func handleClick(_ sender: Any?) {
-        userClicked = true
-        // Prefer the app that was frontmost when the notification launched (most reliable)
-        if let app = frontmostAtLaunch, !app.isTerminated {
-            app.activate()
-        } else if appPid > 0, let targetApp = NSRunningApplication(processIdentifier: appPid) {
-            targetApp.activate()
-        } else if !bundleId.isEmpty,
-                  let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
-            targetApp.activate()
-        }
         NSApplication.shared.terminate(nil)
     }
 }
