@@ -3,7 +3,5 @@
 *.tar.gz
 *.zip
 dist/
-sounds/**/*.wav
-sounds/**/*.mp3
-sounds/**/*.ogg
-!sounds/*/.gitkeep
+cj_sounds/
+.venv/
