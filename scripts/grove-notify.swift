@@ -93,6 +93,38 @@ func calcOrigin(visibleFrame vf: NSRect, slot: Int) -> NSPoint {
     return NSPoint(x: x, y: y)
 }
 
+// MARK: - Click handler to focus app
+
+// Capture the frontmost app right now, before our notification appears.
+// Since we run as .accessory, we don't steal focus — so this is the IDE the user was in.
+let frontmostAtLaunch: NSRunningApplication? = NSWorkspace.shared.frontmostApplication
+
+var userClicked = false
+
+class ClickHandler: NSObject {
+    @objc func handleClick(_ sender: Any?) {
+        userClicked = true
+        // Prefer the app that was frontmost when the notification launched (most reliable)
+        if let app = frontmostAtLaunch, !app.isTerminated {
+            app.activate()
+        } else if appPid > 0, let targetApp = NSRunningApplication(processIdentifier: appPid) {
+            targetApp.activate()
+        } else if !bundleId.isEmpty,
+                  let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
+            targetApp.activate()
+        }
+        NSApplication.shared.terminate(nil)
+    }
+}
+
+let clickHandler = ClickHandler()
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        cleanupSlot()
+    }
+}
+
 // MARK: - App setup
 
 let app = NSApplication.shared
@@ -228,8 +260,8 @@ for screen in NSScreen.screens {
     btn.isBordered = false
     btn.isTransparent = false
     btn.alphaValue = 0.001
-    btn.target = nil
-    btn.action = #selector(NSApplication.terminate(_:))
+    btn.target = clickHandler
+    btn.action = #selector(ClickHandler.handleClick(_:))
     effectView.addSubview(btn)
 
     win.orderFrontRegardless()
@@ -239,21 +271,6 @@ for screen in NSScreen.screens {
     }
 
     windows.append((window: win, screen: screen))
-}
-
-// MARK: - Click handler to focus app
-
-class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationWillTerminate(_ notification: Notification) {
-        // Prefer activating by PID for exact window targeting (multiple windows)
-        if appPid > 0, let targetApp = NSRunningApplication(processIdentifier: appPid) {
-            targetApp.activate()
-        } else if !bundleId.isEmpty,
-                  let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
-            targetApp.activate()
-        }
-        cleanupSlot()
-    }
 }
 
 let delegate = AppDelegate()

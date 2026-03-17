@@ -227,7 +227,7 @@ func cmdSetup() {
 
 	// Detect Homebrew sandbox: post_install runs without HOME write access.
 	// Skip hook registration and tell the user to run setup manually.
-	if os.Getenv("HOMEBREW_BREW_FILE") != "" || os.Getenv("HOMEBREW_PREFIX") != "" {
+	if os.Getenv("HOMEBREW_BREW_FILE") != "" {
 		fmt.Println("[CJ] Running inside Homebrew — skipping hook registration.")
 		fmt.Println("[CJ] Run 'grove-street setup' in your terminal to register hooks.")
 		fmt.Println()
@@ -924,6 +924,36 @@ func categoryLabel(category string) string {
 	return ""
 }
 
+// buildNotifyArgs constructs the argument list passed to grove-notify (all platforms).
+// Arg order must stay in sync with grove-notify.swift / grove-notify.py / grove-notify.ps1.
+//
+//	[0] sender       — "Carl Johnson"
+//	[1] phrase       — voice line text
+//	[2] iconPath     — path to icon image
+//	[3] duration     — dismiss seconds as "N.N"
+//	[4] bundleID     — macOS bundle ID (unused on Linux/Windows)
+//	[5] projectName  — directory name of cwd
+//	[6] position     — e.g. "top-right"
+//	[7] slotIndex    — notification stack slot as string
+//	[8] slotDir      — path to slot lock directory
+//	[9] categoryLabel — human label e.g. "Task Complete"
+//	[10] appPID      — PID to focus on click (macOS only)
+func buildNotifyArgs(phrase, iconPath, bundleID, projectName, position, slotDir string, slotIndex int, duration float64, category string, appPID int32) []string {
+	return []string{
+		"Carl Johnson",
+		phrase,
+		iconPath,
+		fmt.Sprintf("%.1f", duration),
+		bundleID,
+		projectName,
+		position,
+		fmt.Sprintf("%d", slotIndex),
+		slotDir,
+		categoryLabel(category),
+		fmt.Sprintf("%d", appPID),
+	}
+}
+
 func notify(soundFile string, category string, cfg config.Config) {
 	if !cfg.Notifications {
 		return
@@ -951,17 +981,12 @@ func notify(soundFile string, category string, cfg config.Config) {
 	if duration <= 0 {
 		duration = 7
 	}
-	durationStr := fmt.Sprintf("%.1f", duration)
 
 	// Claim a notification slot for stacking
 	slotDir := filepath.Join(config.DataDir(), ".notification-slots")
 	slotIndex, slotFile := claimNotificationSlot()
 
-	notifyArgs := []string{
-		"Carl Johnson", phrase, iconPath, durationStr, bundleID, projectName, position,
-		fmt.Sprintf("%d", slotIndex), slotDir, categoryLabel(category),
-		fmt.Sprintf("%d", appPID),
-	}
+	notifyArgs := buildNotifyArgs(phrase, iconPath, bundleID, projectName, position, slotDir, slotIndex, duration, category, appPID)
 
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

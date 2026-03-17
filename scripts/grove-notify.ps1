@@ -1,5 +1,5 @@
 # grove-notify.ps1 — Native Windows notification overlay for Grove Street
-# Usage: powershell -File grove-notify.ps1 <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir>
+# Usage: powershell -File grove-notify.ps1 <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label]
 #
 # Positions: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center
 
@@ -12,7 +12,8 @@ param(
     [string]$ProjectName = "grove-street",
     [string]$Position = "top-right",
     [int]$SlotIndex = 0,
-    [string]$SlotDir = ""
+    [string]$SlotDir = "",
+    [string]$CategoryLabel = ""
 )
 
 Add-Type -AssemblyName PresentationFramework
@@ -167,6 +168,15 @@ $vStack = New-Object System.Windows.Controls.StackPanel
 $vStack.Orientation = "Vertical"
 $vStack.VerticalAlignment = "Center"
 
+# Sender row: name left, category label right
+$senderRow = New-Object System.Windows.Controls.Grid
+$colLeft = New-Object System.Windows.Controls.ColumnDefinition
+$colLeft.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+$colRight = New-Object System.Windows.Controls.ColumnDefinition
+$colRight.Width = [System.Windows.GridLength]::Auto
+$senderRow.ColumnDefinitions.Add($colLeft)
+$senderRow.ColumnDefinitions.Add($colRight)
+
 $senderLabel = New-Object System.Windows.Controls.TextBlock
 $senderLabel.Text = "$SenderName in $ProjectName"
 $senderLabel.FontWeight = "Bold"
@@ -175,7 +185,24 @@ $senderLabel.Foreground = New-Object System.Windows.Media.SolidColorBrush(
     [System.Windows.Media.Color]::FromArgb(240, 255, 255, 255)
 )
 $senderLabel.TextTrimming = "CharacterEllipsis"
-$vStack.Children.Add($senderLabel) | Out-Null
+$senderLabel.VerticalAlignment = "Center"
+[System.Windows.Controls.Grid]::SetColumn($senderLabel, 0)
+$senderRow.Children.Add($senderLabel) | Out-Null
+
+if ($CategoryLabel) {
+    $catLabel = New-Object System.Windows.Controls.TextBlock
+    $catLabel.Text = $CategoryLabel
+    $catLabel.FontSize = 10
+    $catLabel.Foreground = New-Object System.Windows.Media.SolidColorBrush(
+        [System.Windows.Media.Color]::FromArgb(153, 255, 255, 255)
+    )
+    $catLabel.VerticalAlignment = "Center"
+    $catLabel.Margin = New-Object System.Windows.Thickness(6, 0, 0, 0)
+    [System.Windows.Controls.Grid]::SetColumn($catLabel, 1)
+    $senderRow.Children.Add($catLabel) | Out-Null
+}
+
+$vStack.Children.Add($senderRow) | Out-Null
 
 if ($Phrase) {
     $phraseLabel = New-Object System.Windows.Controls.TextBlock
@@ -198,7 +225,7 @@ $origin = Get-NotificationOrigin $SlotIndex
 $window.Left = $origin.X
 $window.Top = $origin.Y
 
-# Click to focus parent and dismiss
+# Capture foreground window at launch for click-to-focus
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -210,14 +237,13 @@ public class WinAPI {
 }
 "@
 
+$foregroundAtLaunch = [WinAPI]::GetForegroundWindow()
+
 $window.Add_MouseLeftButtonDown({
-    # Try to focus parent process window
-    try {
-        $parent = Get-Process -Id (Get-CimInstance Win32_Process -Filter "ProcessId=$PID").ParentProcessId -ErrorAction SilentlyContinue
-        if ($parent -and $parent.MainWindowHandle) {
-            [WinAPI]::SetForegroundWindow($parent.MainWindowHandle) | Out-Null
-        }
-    } catch {}
+    # Restore the window that was active when the notification launched
+    if ($foregroundAtLaunch -ne [IntPtr]::Zero) {
+        [WinAPI]::SetForegroundWindow($foregroundAtLaunch) | Out-Null
+    }
     Remove-Slot
     $window.Close()
 })

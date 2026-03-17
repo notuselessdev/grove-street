@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """grove-notify.py — Native Linux notification overlay for Grove Street.
 
-Usage: grove-notify.py <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir>
+Usage: grove-notify.py <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label]
 
 Positions: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center
 """
@@ -27,12 +27,24 @@ project_name = args[5] if len(args) > 5 else "grove-street"
 position = args[6] if len(args) > 6 else "top-right"
 slot_index = int(args[7]) if len(args) > 7 else 0
 slot_dir = args[8] if len(args) > 8 else ""
+category_label = args[9] if len(args) > 9 else ""
 
 WIN_WIDTH = 360
 WIN_HEIGHT = 68
 CORNER_R = 16
 MARGIN = 12
 MY_PID = os.getpid()
+
+# Capture the active window ID at launch (before our window appears) for click-to-focus
+def _get_active_window_id():
+    try:
+        import subprocess
+        result = subprocess.run(["xdotool", "getactivewindow"], capture_output=True, text=True)
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+ACTIVE_WIN_AT_LAUNCH = _get_active_window_id()
 
 # --- Slot management ---
 
@@ -138,6 +150,11 @@ window {
     font-size: 13px;
 }
 
+#category-label {
+    color: rgba(255, 255, 255, 0.60);
+    font-size: 10px;
+}
+
 #phrase-label {
     color: rgba(255, 255, 255, 0.50);
     font-size: 12px;
@@ -198,6 +215,9 @@ class NotificationWindow(Gtk.Window):
         text_box.set_valign(Gtk.Align.CENTER)
         box.pack_start(text_box, True, True, 0)
 
+        # Sender row: name on left, category label on right
+        sender_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+
         sender_label = Gtk.Label()
         sender_label.set_name("sender-label")
         sender_label.set_markup(
@@ -205,7 +225,16 @@ class NotificationWindow(Gtk.Window):
         )
         sender_label.set_xalign(0)
         sender_label.set_ellipsize(Pango.EllipsizeMode.END)
-        text_box.pack_start(sender_label, False, False, 0)
+        sender_row.pack_start(sender_label, True, True, 0)
+
+        if category_label:
+            cat_lbl = Gtk.Label(label=category_label)
+            cat_lbl.set_name("category-label")
+            cat_lbl.set_xalign(1)
+            cat_lbl.set_valign(Gtk.Align.CENTER)
+            sender_row.pack_end(cat_lbl, False, False, 0)
+
+        text_box.pack_start(sender_row, False, False, 0)
 
         if phrase:
             phrase_label = Gtk.Label(label=phrase)
@@ -261,10 +290,9 @@ class NotificationWindow(Gtk.Window):
 
 
 def _try_focus_parent():
-    """Best-effort focus of the terminal/IDE that spawned us."""
-    ppid = os.getppid()
-    # Try xdotool first
-    os.system(f"xdotool search --pid {ppid} windowactivate 2>/dev/null")
+    """Restore focus to the window that was active when the notification launched."""
+    if ACTIVE_WIN_AT_LAUNCH:
+        os.system(f"xdotool windowactivate {ACTIVE_WIN_AT_LAUNCH} 2>/dev/null")
 
 
 def main():
