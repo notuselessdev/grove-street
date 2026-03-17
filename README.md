@@ -1,10 +1,29 @@
-# Grove Street
+<p align="center">
+  <img src="assets/icon.png" width="150" alt="CJ from GTA San Andreas" />
+</p>
 
-> "Ah shit, here we go again." — CJ
+<h1 align="center">Grove Street</h1>
 
-GTA San Andreas voice notifications for AI coding agents. Stop babysitting your terminal — let CJ watch it for you.
+<p align="center">
+  <em>"Ah shit, here we go again." — CJ</em>
+</p>
 
-Grove Street plays Carl Johnson voice lines when your AI agent finishes work, hits an error, needs input, or runs low on context. Works with Claude Code, with more agents coming soon.
+<p align="center">
+  GTA San Andreas voice notifications for AI coding agents.<br/>
+  Stop babysitting your terminal — let CJ watch it for you.
+</p>
+
+<p align="center">
+  <a href="https://github.com/notuselessdev/grove-street/releases/latest"><img src="https://img.shields.io/github/v/release/notuselessdev/grove-street" alt="Release"></a>
+  <a href="https://github.com/notuselessdev/grove-street/blob/main/LICENSE"><img src="https://img.shields.io/github/license/notuselessdev/grove-street" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="Platform">
+</p>
+
+---
+
+Grove Street plays Carl Johnson voice lines when your AI agent finishes work, hits an error, needs input, or runs low on context. Native macOS notifications with CJ's face pop up in the top right — click to focus your terminal.
+
+**Supported IDEs:** Claude Code, Cursor, Windsurf, GitHub Copilot, Kiro
 
 ## Install
 
@@ -35,11 +54,11 @@ grove-street setup
 
 ## How It Works
 
-Grove Street hooks into Claude Code's event system. When your agent does something, CJ reacts:
+Grove Street hooks into your AI coding agent's event system. When your agent does something, CJ reacts with a voice line and a native notification:
 
 | Event | CJ Says | When |
 |-------|---------|------|
-| Session starts | *"Grove Street. Home."* | You open a new Claude Code session |
+| Session starts | *"Grove Street. Home."* | You open a new session |
 | Task complete | *"Piece of cake!"* | Agent finishes work |
 | Error | *"All you had to do was follow the damn train, CJ!"* | Something breaks |
 | Needs input | *"So what's the plan?"* | Agent needs your approval or answer |
@@ -95,23 +114,11 @@ Drop `.wav` or `.mp3` files into the category folders:
 ```
 ~/.grove-street/sounds/
 ├── session_start/
-│   ├── grove_street_home.wav
-│   └── here_we_go_again.wav
 ├── task_complete/
-│   ├── piece_of_cake.wav
-│   └── easy.wav
 ├── task_error/
-│   ├── follow_the_damn_train.wav
-│   └── ah_shit.wav
 ├── input_required/
-│   ├── what_you_want.wav
-│   └── whats_the_plan.wav
 ├── resource_limit/
-│   ├── gotta_get_outta_here.wav
-│   └── runnin_out_of_time.wav
 └── user_spam/
-    ├── chill_chill.wav
-    └── back_off.wav
 ```
 
 Grove Street picks a random file from the matching category each time.
@@ -121,9 +128,9 @@ Grove Street picks a random file from the matching category each time.
 ```sh
 grove-street play <category>   # Test a sound
 grove-street list               # List all sounds
-grove-street setup              # Register Claude Code hooks
+grove-street setup              # Register hooks for detected IDEs
 grove-street update             # Check for updates
-grove-street uninstall          # Remove hooks
+grove-street uninstall          # Remove hooks from all IDEs
 grove-street version            # Print version
 ```
 
@@ -135,7 +142,8 @@ Edit `~/.grove-street/config.json`:
 {
   "enabled": true,
   "volume": 0.8,
-  "auto_update": true
+  "auto_update": true,
+  "notifications": true
 }
 ```
 
@@ -144,33 +152,21 @@ Edit `~/.grove-street/config.json`:
 | `enabled` | `true` | Master on/off switch |
 | `volume` | `0.8` | Volume level (0.0 - 1.0) |
 | `auto_update` | `true` | Check for updates daily |
-
-## Auto-Updates
-
-When `auto_update` is enabled (default), Grove Street checks for new releases daily via a cron job (macOS/Linux) or scheduled task (Windows). Updates download and apply automatically.
-
-Manual update:
-
-```sh
-grove-street update
-```
+| `notifications` | `true` | Show native overlay notifications |
 
 ## Platform Support
 
-| Platform | Audio Player | Notes |
-|----------|-------------|-------|
-| macOS | `afplay` (built-in) | Zero dependencies |
-| Linux | PipeWire, PulseAudio, FFmpeg, mpv, or ALSA | Auto-detects best available player |
-| Windows | PowerShell MediaPlayer | Uses WPF MediaPlayer API |
+| Platform | Audio Player | Notifications |
+|----------|-------------|---------------|
+| macOS | `afplay` (built-in) | Native overlay (JXA/Cocoa) |
+| Linux | PipeWire, PulseAudio, FFmpeg, mpv, or ALSA | — |
+| Windows | PowerShell MediaPlayer | — |
 
 ## Uninstall
 
 ```sh
-# Homebrew
+# Homebrew (auto-removes hooks from all IDEs)
 brew uninstall grove-street
-
-# Shell script
-curl -fsSL https://raw.githubusercontent.com/notuselessdev/grove-street/main/uninstall.sh | bash
 
 # Manual
 grove-street uninstall
