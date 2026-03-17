@@ -40,9 +40,10 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           EXT=""
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
-          OUTPUT="grove-street_${GOOS}_${GOARCH}${EXT}"
-          go build -ldflags "-s -w -X main.version=${VERSION}" -o "$OUTPUT" ./cmd/grove-street
-          tar -czf "${OUTPUT%.exe}.tar.gz" "$OUTPUT"
+          BINARY="grove-street${EXT}"
+          ARCHIVE="grove-street_${GOOS}_${GOARCH}"
+          go build -ldflags "-s -w -X main.version=${VERSION}" -o "$BINARY" ./cmd/grove-street
+          tar -czf "${ARCHIVE}.tar.gz" "$BINARY"
 
       - uses: actions/upload-artifact@v4
         with:
