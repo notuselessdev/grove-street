@@ -21,7 +21,7 @@
 
 ---
 
-Grove Street plays Carl Johnson voice lines when your AI agent finishes work, hits an error, needs input, or runs low on context. Native macOS notifications with CJ's face pop up on screen — click to focus your terminal. Multiple notifications stack and reflow when dismissed.
+Grove Street plays Carl Johnson voice lines when your AI agent finishes work, hits an error, needs input, or runs low on context. Native notifications with CJ's face pop up on screen. Multiple notifications stack and reflow when dismissed.
 
 **Supported IDEs:** Claude Code, Cursor, Windsurf, GitHub Copilot, Kiro
 
@@ -182,6 +182,13 @@ rm -rf ~/.grove-street
 ```sh
 git clone https://github.com/notuselessdev/grove-street.git
 cd grove-street
+make dev        # build binary + compile/sign macOS overlay
+./grove-street setup
+```
+
+Or manually:
+
+```sh
 go build -o grove-street ./cmd/grove-street
 ./grove-street setup
 ```
