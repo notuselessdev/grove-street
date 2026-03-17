@@ -770,9 +770,15 @@ func notify(category, soundFile string, cfg config.Config) {
 	// Detect which app to focus on click
 	bundleID := detectParentApp()
 
+	// Use the current working directory as the project label
+	appLabel := "GROVE STREET"
+	if wd, err := os.Getwd(); err == nil {
+		appLabel = strings.ToUpper(filepath.Base(wd))
+	}
+
 	args := []string{
 		"-l", "JavaScript", overlayScript,
-		title, message, iconPath, "7", bundleID,
+		title, message, iconPath, "7", bundleID, appLabel,
 	}
 
 	cmd := exec.Command("osascript", args...)

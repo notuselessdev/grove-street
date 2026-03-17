@@ -1,6 +1,6 @@
 #!/usr/bin/env osascript -l JavaScript
 // mac-overlay.js — Native macOS-style notification overlay for Grove Street
-// Usage: osascript -l JavaScript mac-overlay.js <title> <message> <icon_path> <dismiss_seconds> [bundle_id]
+// Usage: osascript -l JavaScript mac-overlay.js <title> <message> <icon_path> <dismiss_seconds> [bundle_id] [app_label]
 //
 // Apple-style notification: top-right, rounded, translucent dark background.
 // Click to focus the target app. Auto-dismisses.
@@ -14,6 +14,7 @@ function run(argv) {
   var dismiss  = argv[3] !== undefined ? parseFloat(argv[3]) : 4;
   if (isNaN(dismiss)) dismiss = 4;
   var bundleId = argv[4] || '';
+  var appName = argv[5] || 'GROVE STREET';
 
   var winWidth = 360, winHeight = 64;
 
@@ -156,7 +157,7 @@ function run(argv) {
     var appLabel = $.NSTextField.alloc.initWithFrame(
       $.NSMakeRect(winWidth - 110, winHeight - 17, 96, 14)
     );
-    appLabel.setStringValue($('GROVE STREET'));
+    appLabel.setStringValue($(appName));
     appLabel.setBezeled(false);
     appLabel.setDrawsBackground(false);
     appLabel.setEditable(false);
