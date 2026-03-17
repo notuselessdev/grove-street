@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://github.com/notuselessdev/grove-street/releases/latest"><img src="https://img.shields.io/github/v/release/notuselessdev/grove-street" alt="Release"></a>
-  <a href="https://github.com/notuselessdev/grove-street/blob/main/LICENSE"><img src="https://img.shields.io/github/license/notuselessdev/grove-street" alt="License"></a>
+  <a href="https://github.com/notuselessdev/grove-street/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="Platform">
 </p>
 
