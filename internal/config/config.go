@@ -9,19 +9,30 @@ import (
 
 // Config holds grove-street settings.
 type Config struct {
-	Enabled       bool    `json:"enabled"`
-	Volume        float64 `json:"volume"`
-	AutoUpdate    bool    `json:"auto_update"`
-	Notifications bool    `json:"notifications"`
+	Enabled              bool    `json:"enabled"`
+	Volume               float64 `json:"volume"`
+	AutoUpdate           bool    `json:"auto_update"`
+	Notifications        bool    `json:"notifications"`
+	NotificationPosition string  `json:"notification_position"`
+	NotificationDuration float64 `json:"notification_duration_seconds"`
+}
+
+// Valid notification positions.
+var ValidPositions = []string{
+	"top-left", "top-center", "top-right",
+	"bottom-left", "bottom-center", "bottom-right",
+	"center",
 }
 
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() Config {
 	return Config{
-		Enabled:       true,
-		Volume:        0.8,
-		AutoUpdate:    true,
-		Notifications: true,
+		Enabled:              true,
+		Volume:               0.8,
+		AutoUpdate:           true,
+		Notifications:        true,
+		NotificationPosition: "top-right",
+		NotificationDuration: 7,
 	}
 }
 

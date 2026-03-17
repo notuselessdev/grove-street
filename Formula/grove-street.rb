@@ -27,7 +27,7 @@ class GroveStreet < Formula
   def install
     bin.install "grove-street"
     (share/"grove-street").install "icon.png" if File.exist?("icon.png")
-    (share/"grove-street").install "mac-overlay.js" if File.exist?("mac-overlay.js")
+    (share/"grove-street").install "grove-notify.swift" if File.exist?("grove-notify.swift")
   end
 
   def post_install

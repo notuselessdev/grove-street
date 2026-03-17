@@ -201,7 +201,7 @@ func cmdSetup() {
 
 	// Install assets if missing
 	installIcon()
-	installOverlayScript()
+	installNotifyBinary()
 
 	// Write default config if missing
 	if _, err := os.Stat(config.ConfigPath()); os.IsNotExist(err) {
@@ -269,6 +269,7 @@ func cmdPlay() {
 
 	fmt.Printf("Playing: %s\n", filepath.Base(path))
 	player.Play(path, cfg.Volume)
+	notify(filepath.Base(path), cfg)
 }
 
 // cmdList lists all sounds organized by category.
@@ -705,9 +706,10 @@ func installIcon() {
 	}
 }
 
-// installOverlayScript copies mac-overlay.js to the data directory.
-func installOverlayScript() {
-	dest := filepath.Join(config.DataDir(), "mac-overlay.js")
+// installNotifyBinary copies the grove-notify binary to the data directory.
+// If the source is a .swift file, it compiles it first.
+func installNotifyBinary() {
+	dest := filepath.Join(config.DataDir(), "grove-notify")
 	if _, err := os.Stat(dest); err == nil {
 		return
 	}
@@ -719,17 +721,38 @@ func installOverlayScript() {
 	binPath, _ = filepath.EvalSymlinks(binPath)
 	binDir := filepath.Dir(binPath)
 
-	candidates := []string{
-		filepath.Join(binDir, "mac-overlay.js"),
-		filepath.Join(binDir, "..", "share", "grove-street", "mac-overlay.js"),
-		filepath.Join(binDir, "..", "scripts", "mac-overlay.js"),
+	// Look for pre-compiled binary first
+	binaryCandidates := []string{
+		filepath.Join(binDir, "grove-notify"),
+		filepath.Join(binDir, "..", "share", "grove-street", "grove-notify"),
+		filepath.Join(binDir, "..", "scripts", "grove-notify"),
 	}
 
-	for _, src := range candidates {
-		if data, err := os.ReadFile(src); err == nil {
+	for _, src := range binaryCandidates {
+		if info, err := os.Stat(src); err == nil && !info.IsDir() {
+			if data, err := os.ReadFile(src); err == nil {
+				os.MkdirAll(filepath.Dir(dest), 0755)
+				os.WriteFile(dest, data, 0755)
+				return
+			}
+		}
+	}
+
+	// Fall back to compiling from source
+	swiftCandidates := []string{
+		filepath.Join(binDir, "grove-notify.swift"),
+		filepath.Join(binDir, "..", "share", "grove-street", "grove-notify.swift"),
+		filepath.Join(binDir, "..", "scripts", "grove-notify.swift"),
+	}
+
+	for _, src := range swiftCandidates {
+		if _, err := os.Stat(src); err == nil {
 			os.MkdirAll(filepath.Dir(dest), 0755)
-			os.WriteFile(dest, data, 0644)
-			return
+			cmd := exec.Command("swiftc", "-O", "-o", dest, src, "-framework", "Cocoa")
+			if err := cmd.Run(); err == nil {
+				fmt.Println("[CJ] Compiled notification overlay")
+				return
+			}
 		}
 	}
 }
@@ -746,8 +769,8 @@ func notify(soundFile string, cfg config.Config) {
 	// Voice line phrase from the sound filename
 	phrase := soundToPhrase(soundFile)
 
-	overlayScript := findOverlayScript()
-	if overlayScript == "" {
+	notifyBin := findNotifyBinary()
+	if notifyBin == "" {
 		return
 	}
 
@@ -762,17 +785,73 @@ func notify(soundFile string, cfg config.Config) {
 		projectName = filepath.Base(wd)
 	}
 
+	position := cfg.NotificationPosition
+	if position == "" {
+		position = "top-right"
+	}
+	duration := cfg.NotificationDuration
+	if duration <= 0 {
+		duration = 7
+	}
+	durationStr := fmt.Sprintf("%.1f", duration)
+
+	// Claim a notification slot for stacking
+	slotDir := filepath.Join(config.DataDir(), ".notification-slots")
+	slotIndex, slotFile := claimNotificationSlot()
+
 	args := []string{
-		"-l", "JavaScript", overlayScript,
-		"Carl Johnson", phrase, iconPath, "7", bundleID, projectName,
+		"Carl Johnson", phrase, iconPath, durationStr, bundleID, projectName, position,
+		fmt.Sprintf("%d", slotIndex), slotDir,
 	}
 
-	cmd := exec.Command("osascript", args...)
+	cmd := exec.Command(notifyBin, args...)
 	cmd.Start()
+
+	// Write the PID into the lock file so future invocations
+	// can check if the notification is still alive
+	if slotFile != "" && cmd.Process != nil {
+		os.WriteFile(slotFile, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0644)
+	}
 }
 
-// findOverlayScript locates mac-overlay.js relative to the binary.
-func findOverlayScript() string {
+// claimNotificationSlot finds the first available slot (0-9) and creates a lock file.
+func claimNotificationSlot() (int, string) {
+	slotDir := filepath.Join(config.DataDir(), ".notification-slots")
+	os.MkdirAll(slotDir, 0755)
+
+	for i := 0; i < 10; i++ {
+		slotFile := filepath.Join(slotDir, fmt.Sprintf("%d.lock", i))
+		// Try to create exclusively
+		f, err := os.OpenFile(slotFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+		if err != nil {
+			// Lock file exists — check if the PID inside is still running
+			if pidBytes, rerr := os.ReadFile(slotFile); rerr == nil && len(pidBytes) > 0 {
+				if !isProcessAlive(strings.TrimSpace(string(pidBytes))) {
+					// Process is dead, reclaim this slot
+					os.Remove(slotFile)
+					f, err = os.OpenFile(slotFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+					if err != nil {
+						continue
+					}
+					f.Close()
+					return i, slotFile
+				}
+			}
+			continue
+		}
+		f.Close()
+		return i, slotFile
+	}
+	return 0, ""
+}
+
+// isProcessAlive checks if a process with the given PID string is still running.
+func isProcessAlive(pidStr string) bool {
+	return exec.Command("kill", "-0", pidStr).Run() == nil
+}
+
+// findNotifyBinary locates the grove-notify Swift binary.
+func findNotifyBinary() string {
 	binPath, err := os.Executable()
 	if err != nil {
 		return ""
@@ -781,13 +860,13 @@ func findOverlayScript() string {
 	binDir := filepath.Dir(binPath)
 
 	candidates := []string{
-		filepath.Join(binDir, "..", "share", "grove-street", "mac-overlay.js"),
-		filepath.Join(binDir, "mac-overlay.js"),
-		filepath.Join(binDir, "..", "scripts", "mac-overlay.js"),
+		filepath.Join(binDir, "..", "share", "grove-street", "grove-notify"),
+		filepath.Join(binDir, "grove-notify"),
+		filepath.Join(binDir, "..", "scripts", "grove-notify"),
 	}
 
 	// Also check data dir
-	candidates = append(candidates, filepath.Join(config.DataDir(), "mac-overlay.js"))
+	candidates = append(candidates, filepath.Join(config.DataDir(), "grove-notify"))
 
 	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {

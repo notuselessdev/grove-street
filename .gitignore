@@ -1,4 +1,6 @@
 /grove-street
+scripts/grove-notify
+workspace/
 *.exe
 *.tar.gz
 *.zip

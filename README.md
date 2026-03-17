@@ -21,7 +21,7 @@
 
 ---
 
-Grove Street plays Carl Johnson voice lines when your AI agent finishes work, hits an error, needs input, or runs low on context. Native macOS notifications with CJ's face pop up in the top right — click to focus your terminal.
+Grove Street plays Carl Johnson voice lines when your AI agent finishes work, hits an error, needs input, or runs low on context. Native macOS notifications with CJ's face pop up on screen — click to focus your terminal. Multiple notifications stack and reflow when dismissed.
 
 **Supported IDEs:** Claude Code, Cursor, Windsurf, GitHub Copilot, Kiro
 
@@ -143,7 +143,9 @@ Edit `~/.grove-street/config.json`:
   "enabled": true,
   "volume": 0.8,
   "auto_update": true,
-  "notifications": true
+  "notifications": true,
+  "notification_position": "top-right",
+  "notification_duration_seconds": 7
 }
 ```
 
@@ -153,12 +155,14 @@ Edit `~/.grove-street/config.json`:
 | `volume` | `0.8` | Volume level (0.0 - 1.0) |
 | `auto_update` | `true` | Check for updates daily |
 | `notifications` | `true` | Show native overlay notifications |
+| `notification_position` | `"top-right"` | Position: `top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center`, `bottom-right`, `center` |
+| `notification_duration_seconds` | `7` | How long notifications stay on screen |
 
 ## Platform Support
 
 | Platform | Audio Player | Notifications |
 |----------|-------------|---------------|
-| macOS | `afplay` (built-in) | Native overlay (JXA/Cocoa) |
+| macOS | `afplay` (built-in) | Native overlay (Swift/Cocoa) |
 | Linux | PipeWire, PulseAudio, FFmpeg, mpv, or ALSA | — |
 | Windows | PowerShell MediaPlayer | — |
 
