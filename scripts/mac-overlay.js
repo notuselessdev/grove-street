@@ -116,10 +116,16 @@ function run(argv) {
       }
     }
 
-    // App/project name — top line, like native macOS notification app name
+    // Vertically center the 3-line text block
+    // App name (14) + gap (2) + title (18) + gap (1) + message (16) = 51
+    var textBlockHeight = 14 + 2 + 18 + 1 + 16;
+    var textBlockY = (winHeight - textBlockHeight) / 2;  // bottom of text block
+
+    // App/project name — top line
     var appFont = $.NSFont.boldSystemFontOfSize(11);
+    var appNameY = textBlockY + textBlockHeight - 14;
     var appNameLabel = $.NSTextField.alloc.initWithFrame(
-      $.NSMakeRect(textX, winHeight - 18, textWidth, 14)
+      $.NSMakeRect(textX, appNameY, textWidth, 14)
     );
     appNameLabel.setStringValue($(appName));
     appNameLabel.setBezeled(false);
@@ -134,7 +140,7 @@ function run(argv) {
     // Title — main line, bold
     var titleFont = $.NSFont.boldSystemFontOfSize(14);
     var titleHeight = 18;
-    var titleY = winHeight - 18 - titleHeight - 2;
+    var titleY = appNameY - 2 - titleHeight;
     var titleLabel = $.NSTextField.alloc.initWithFrame(
       $.NSMakeRect(textX, titleY, textWidth, titleHeight)
     );
@@ -153,7 +159,7 @@ function run(argv) {
     if (message) {
       var msgFont = $.NSFont.systemFontOfSize(12);
       var msgLabel = $.NSTextField.alloc.initWithFrame(
-        $.NSMakeRect(textX, titleY - 17, textWidth, 16)
+        $.NSMakeRect(textX, titleY - 1 - 16, textWidth, 16)
       );
       msgLabel.setStringValue($(message));
       msgLabel.setBezeled(false);
