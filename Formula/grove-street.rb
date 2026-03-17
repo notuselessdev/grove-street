@@ -24,11 +24,10 @@ class GroveStreet < Formula
     end
   end
 
-  depends_on "terminal-notifier" => :recommended
-
   def install
     bin.install "grove-street"
     (share/"grove-street").install "icon.png" if File.exist?("icon.png")
+    (share/"grove-street").install "mac-overlay.js" if File.exist?("mac-overlay.js")
   end
 
   def post_install

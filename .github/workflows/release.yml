@@ -44,7 +44,8 @@ jobs:
           ARCHIVE="grove-street_${GOOS}_${GOARCH}"
           go build -ldflags "-s -w -X main.version=${VERSION}" -o "$BINARY" ./cmd/grove-street
           cp assets/icon.png icon.png 2>/dev/null || true
-          tar -czf "${ARCHIVE}.tar.gz" "$BINARY" icon.png
+          cp scripts/mac-overlay.js mac-overlay.js 2>/dev/null || true
+          tar -czf "${ARCHIVE}.tar.gz" "$BINARY" icon.png mac-overlay.js
 
       - uses: actions/upload-artifact@v4
         with:

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/notuselessdev/grove-street/internal/config"
@@ -198,8 +199,9 @@ func cmdSetup() {
 		os.MkdirAll(filepath.Join(config.SoundsDir(), cat), 0755)
 	}
 
-	// Install icon if missing
+	// Install assets if missing
 	installIcon()
+	installOverlayScript()
 
 	// Write default config if missing
 	if _, err := os.Stat(config.ConfigPath()); os.IsNotExist(err) {
@@ -709,12 +711,41 @@ func installIcon() {
 	}
 }
 
+// installOverlayScript copies mac-overlay.js to the data directory.
+func installOverlayScript() {
+	dest := filepath.Join(config.DataDir(), "mac-overlay.js")
+	if _, err := os.Stat(dest); err == nil {
+		return
+	}
+
+	binPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	binPath, _ = filepath.EvalSymlinks(binPath)
+	binDir := filepath.Dir(binPath)
+
+	candidates := []string{
+		filepath.Join(binDir, "mac-overlay.js"),
+		filepath.Join(binDir, "..", "share", "grove-street", "mac-overlay.js"),
+		filepath.Join(binDir, "..", "scripts", "mac-overlay.js"),
+	}
+
+	for _, src := range candidates {
+		if data, err := os.ReadFile(src); err == nil {
+			os.MkdirAll(filepath.Dir(dest), 0755)
+			os.WriteFile(dest, data, 0644)
+			return
+		}
+	}
+}
+
 func notify(category, soundFile string, cfg config.Config) {
 	if !cfg.Notifications {
 		return
 	}
 
-	if _, err := exec.LookPath("terminal-notifier"); err != nil {
+	if runtime.GOOS != "darwin" {
 		return
 	}
 
@@ -727,19 +758,66 @@ func notify(category, soundFile string, cfg config.Config) {
 		message = soundFile
 	}
 
-	args := []string{
-		"-title", title,
-		"-message", message,
-		"-group", "grove-street",
-		"-sender", "com.apple.Terminal",
+	overlayScript := findOverlayScript()
+	if overlayScript == "" {
+		return
 	}
 
-	// Use CJ icon if available
 	iconPath := config.IconPath()
-	if _, err := os.Stat(iconPath); err == nil {
-		args = append(args, "-appIcon", iconPath)
+
+	// Detect which app to focus on click
+	bundleID := detectParentApp()
+
+	args := []string{
+		"-l", "JavaScript", overlayScript,
+		title, message, iconPath, "4", bundleID,
 	}
 
-	cmd := exec.Command("terminal-notifier", args...)
+	cmd := exec.Command("osascript", args...)
 	cmd.Start()
+}
+
+// findOverlayScript locates mac-overlay.js relative to the binary.
+func findOverlayScript() string {
+	binPath, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	binPath, _ = filepath.EvalSymlinks(binPath)
+	binDir := filepath.Dir(binPath)
+
+	candidates := []string{
+		filepath.Join(binDir, "..", "share", "grove-street", "mac-overlay.js"),
+		filepath.Join(binDir, "mac-overlay.js"),
+		filepath.Join(binDir, "..", "scripts", "mac-overlay.js"),
+	}
+
+	// Also check data dir
+	candidates = append(candidates, filepath.Join(config.DataDir(), "mac-overlay.js"))
+
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// detectParentApp tries to find the bundle ID of the terminal/IDE running us.
+func detectParentApp() string {
+	// Check common environment hints
+	if os.Getenv("TERM_PROGRAM") == "iTerm.app" {
+		return "com.googlecode.iterm2"
+	}
+	if os.Getenv("TERM_PROGRAM") == "Apple_Terminal" {
+		return "com.apple.Terminal"
+	}
+	if os.Getenv("TERM_PROGRAM") == "vscode" {
+		return "com.microsoft.VSCode"
+	}
+	if os.Getenv("CURSOR_TRACE_ID") != "" {
+		return "com.todesktop.230313mzl4w4u92"
+	}
+	// Default to Terminal
+	return "com.apple.Terminal"
 }
