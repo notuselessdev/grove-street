@@ -1,6 +1,7 @@
 package player
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -8,11 +9,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-
 	"github.com/notuselessdev/grove-street/internal/config"
 )
 
-// Pick selects a random sound file from the given category.
+// Pick selects a random sound file from the given category,
+// avoiding recently played files until all have been played (shuffle bag).
 func Pick(category string, cfg config.Config) string {
 	dir := filepath.Join(config.SoundsDir(), category)
 	entries, err := os.ReadDir(dir)
@@ -31,7 +32,62 @@ func Pick(category string, cfg config.Config) string {
 		return ""
 	}
 
-	return files[rand.Intn(len(files))]
+	history := loadHistory()
+	played := history[category]
+
+	// Filter out recently played
+	var available []string
+	for _, f := range files {
+		if !contains(played, f) {
+			available = append(available, f)
+		}
+	}
+
+	// All played — reset and pick from full list
+	if len(available) == 0 {
+		available = files
+		played = nil
+	}
+
+	pick := available[rand.Intn(len(available))]
+
+	// Update history
+	played = append(played, pick)
+	history[category] = played
+	saveHistory(history)
+
+	return pick
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func historyPath() string {
+	return filepath.Join(config.DataDir(), "history.json")
+}
+
+func loadHistory() map[string][]string {
+	h := make(map[string][]string)
+	data, err := os.ReadFile(historyPath())
+	if err != nil {
+		return h
+	}
+	json.Unmarshal(data, &h)
+	return h
+}
+
+func saveHistory(h map[string][]string) {
+	data, err := json.Marshal(h)
+	if err != nil {
+		return
+	}
+	os.WriteFile(historyPath(), data, 0644)
 }
 
 // Play plays an audio file at the given volume (0.0 - 1.0).

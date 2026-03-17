@@ -770,7 +770,7 @@ func notify(category, soundFile string, cfg config.Config) {
 
 	args := []string{
 		"-l", "JavaScript", overlayScript,
-		title, message, iconPath, "4", bundleID,
+		title, message, iconPath, "7", bundleID,
 	}
 
 	cmd := exec.Command("osascript", args...)
