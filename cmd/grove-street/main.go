@@ -473,7 +473,12 @@ func registerJSONHooks(path, hooksKey, hookCmd string, events []string) error {
 
 	hookEntry := map[string]interface{}{
 		"matcher": "",
-		"command": hookCmd,
+		"hooks": []interface{}{
+			map[string]interface{}{
+				"type":    "command",
+				"command": hookCmd,
+			},
+		},
 	}
 
 	for _, event := range events {
@@ -482,10 +487,8 @@ func registerJSONHooks(path, hooksKey, hookCmd string, events []string) error {
 		if arr, ok := hooksMap[event].([]interface{}); ok {
 			// Filter out any existing grove-street hooks
 			for _, h := range arr {
-				if m, ok := h.(map[string]interface{}); ok {
-					if cmd, ok := m["command"].(string); ok && strings.Contains(cmd, "grove-street") {
-						continue
-					}
+				if containsGroveStreet(h) {
+					continue
 				}
 				existing = append(existing, h)
 			}
@@ -503,8 +506,31 @@ func registerJSONHooks(path, hooksKey, hookCmd string, events []string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// containsGroveStreet checks if a hook entry references grove-street in any format.
+func containsGroveStreet(h interface{}) bool {
+	m, ok := h.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	// Flat format: {"command": "...grove-street..."}
+	if cmd, ok := m["command"].(string); ok && strings.Contains(cmd, "grove-street") {
+		return true
+	}
+	// Nested format: {"hooks": [{"command": "...grove-street..."}]}
+	if hooksArr, ok := m["hooks"].([]interface{}); ok {
+		for _, hk := range hooksArr {
+			if hm, ok := hk.(map[string]interface{}); ok {
+				if cmd, ok := hm["command"].(string); ok && strings.Contains(cmd, "grove-street") {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // unregisterJSONHooks removes grove-street hook entries from a JSON config file.
-func unregisterJSONHooks(path, needle string) {
+func unregisterJSONHooks(path, _ string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return
@@ -528,13 +554,7 @@ func unregisterJSONHooks(path, needle string) {
 		}
 		var filtered []interface{}
 		for _, h := range arr {
-			m, ok := h.(map[string]interface{})
-			if !ok {
-				filtered = append(filtered, h)
-				continue
-			}
-			cmd, _ := m["command"].(string)
-			if strings.Contains(cmd, needle) {
+			if containsGroveStreet(h) {
 				modified = true
 				continue
 			}
