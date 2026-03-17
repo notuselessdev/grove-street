@@ -43,7 +43,8 @@ jobs:
           BINARY="grove-street${EXT}"
           ARCHIVE="grove-street_${GOOS}_${GOARCH}"
           go build -ldflags "-s -w -X main.version=${VERSION}" -o "$BINARY" ./cmd/grove-street
-          tar -czf "${ARCHIVE}.tar.gz" "$BINARY"
+          cp assets/icon.png icon.png 2>/dev/null || true
+          tar -czf "${ARCHIVE}.tar.gz" "$BINARY" icon.png
 
       - uses: actions/upload-artifact@v4
         with:

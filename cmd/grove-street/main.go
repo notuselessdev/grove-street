@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -53,26 +54,36 @@ func cmdHook() {
 		return
 	}
 
-	// Parse --source flag for multi-IDE support
+	// Parse flags
 	source := ""
+	eventType := ""
 	for i := 2; i < len(os.Args)-1; i++ {
 		if os.Args[i] == "--source" {
 			source = os.Args[i+1]
 		}
+		if os.Args[i] == "--event" {
+			eventType = os.Args[i+1]
+		}
+	}
+	// Also check if --event is the last arg (no value after it would be caught above)
+	if len(os.Args) >= 4 && os.Args[len(os.Args)-2] == "--event" {
+		eventType = os.Args[len(os.Args)-1]
 	}
 
-	raw, err := io.ReadAll(os.Stdin)
-	if err != nil || len(raw) == 0 {
-		return
-	}
+	raw, _ := io.ReadAll(os.Stdin)
 
 	var event hooks.Event
-	if source == "" || source == "claude" {
-		if err := json.Unmarshal(raw, &event); err != nil {
-			return
+	if len(raw) > 0 {
+		if source == "" || source == "claude" {
+			json.Unmarshal(raw, &event)
+		} else {
+			event = normalizeEvent(source, raw)
 		}
-	} else {
-		event = normalizeEvent(source, raw)
+	}
+
+	// --event flag overrides whatever was (or wasn't) in the JSON
+	if eventType != "" {
+		event.Type = eventType
 	}
 
 	category := hooks.Classify(event)
@@ -85,6 +96,7 @@ func cmdHook() {
 		return
 	}
 	player.Play(path, cfg.Volume)
+	notify(category, filepath.Base(path), cfg)
 }
 
 // normalizeEvent converts IDE-specific JSON payloads into a hooks.Event.
@@ -185,6 +197,9 @@ func cmdSetup() {
 	for _, cat := range categories {
 		os.MkdirAll(filepath.Join(config.SoundsDir(), cat), 0755)
 	}
+
+	// Install icon if missing
+	installIcon()
 
 	// Write default config if missing
 	if _, err := os.Stat(config.ConfigPath()); os.IsNotExist(err) {
@@ -404,9 +419,8 @@ func kiroConfigDir() string {
 
 func registerClaudeHooks(binPath string) error {
 	settingsPath := filepath.Join(claudeConfigDir(), "settings.json")
-	hookCmd := binPath + " hook"
 	events := []string{"SessionStart", "Stop", "Notification", "SubagentStop", "PreCompact", "PermissionRequest"}
-	return registerJSONHooks(settingsPath, "hooks", hookCmd, events)
+	return registerJSONHooksPerEvent(settingsPath, "hooks", binPath+" hook", events)
 }
 
 func registerCursorHooks(binPath string) error {
@@ -452,6 +466,55 @@ func registerKiroHooks(binPath string) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(agentsDir, "grove-street.json"), data, 0644)
+}
+
+// registerJSONHooksPerEvent adds grove-street hook entries with --event flag per event type.
+func registerJSONHooksPerEvent(path, hooksKey, baseCmd string, events []string) error {
+	os.MkdirAll(filepath.Dir(path), 0755)
+
+	settings := make(map[string]interface{})
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &settings)
+	}
+
+	hooksMap, ok := settings[hooksKey].(map[string]interface{})
+	if !ok {
+		hooksMap = make(map[string]interface{})
+	}
+
+	for _, event := range events {
+		hookCmd := baseCmd + " --event " + event
+
+		hookEntry := map[string]interface{}{
+			"matcher": "",
+			"hooks": []interface{}{
+				map[string]interface{}{
+					"type":    "command",
+					"command": hookCmd,
+				},
+			},
+		}
+
+		var existing []interface{}
+		if arr, ok := hooksMap[event].([]interface{}); ok {
+			for _, h := range arr {
+				if containsGroveStreet(h) {
+					continue
+				}
+				existing = append(existing, h)
+			}
+		}
+		existing = append(existing, hookEntry)
+		hooksMap[event] = existing
+	}
+
+	settings[hooksKey] = hooksMap
+
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
 }
 
 // registerJSONHooks adds grove-street hook entries to a JSON config file.
@@ -592,4 +655,91 @@ func dirExists(path string) bool {
 func isAudio(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	return ext == ".wav" || ext == ".mp3" || ext == ".ogg"
+}
+
+// --- Notifications ---
+
+var categoryTitles = map[string]string{
+	"session_start":  "Ah shit, here we go again.",
+	"task_complete":  "Mission Passed!",
+	"task_error":     "Wasted!",
+	"input_required": "Yo CJ!",
+	"resource_limit": "Running low, homie!",
+	"user_spam":      "Chill out, man!",
+}
+
+var categoryMessages = map[string]string{
+	"session_start":  "Grove Street. Home.",
+	"task_complete":  "Respect+",
+	"task_error":     "Something went wrong, fool!",
+	"input_required": "Your input is needed.",
+	"resource_limit": "Context getting tight.",
+	"user_spam":      "You trippin'.",
+}
+
+// installIcon copies the icon from the binary's directory to the data directory.
+func installIcon() {
+	dest := config.IconPath()
+	if _, err := os.Stat(dest); err == nil {
+		return // already installed
+	}
+
+	// Look for icon next to the binary
+	binPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	binPath, _ = filepath.EvalSymlinks(binPath)
+	binDir := filepath.Dir(binPath)
+
+	// Check a few possible locations (Homebrew puts it in share/grove-street/)
+	candidates := []string{
+		filepath.Join(binDir, "icon.png"),
+		filepath.Join(binDir, "..", "share", "grove-street", "icon.png"),
+		filepath.Join(binDir, "..", "assets", "icon.png"),
+		filepath.Join(binDir, "..", "lib", "grove-street", "icon.png"),
+	}
+
+	for _, src := range candidates {
+		if data, err := os.ReadFile(src); err == nil {
+			os.MkdirAll(filepath.Dir(dest), 0755)
+			os.WriteFile(dest, data, 0644)
+			return
+		}
+	}
+}
+
+func notify(category, soundFile string, cfg config.Config) {
+	if !cfg.Notifications {
+		return
+	}
+
+	if _, err := exec.LookPath("terminal-notifier"); err != nil {
+		return
+	}
+
+	title := categoryTitles[category]
+	if title == "" {
+		title = "Grove Street"
+	}
+	message := categoryMessages[category]
+	if message == "" {
+		message = soundFile
+	}
+
+	args := []string{
+		"-title", title,
+		"-message", message,
+		"-group", "grove-street",
+		"-sender", "com.apple.Terminal",
+	}
+
+	// Use CJ icon if available
+	iconPath := config.IconPath()
+	if _, err := os.Stat(iconPath); err == nil {
+		args = append(args, "-appIcon", iconPath)
+	}
+
+	cmd := exec.Command("terminal-notifier", args...)
+	cmd.Start()
 }

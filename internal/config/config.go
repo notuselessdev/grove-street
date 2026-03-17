@@ -9,18 +9,25 @@ import (
 
 // Config holds grove-street settings.
 type Config struct {
-	Enabled    bool    `json:"enabled"`
-	Volume     float64 `json:"volume"`
-	AutoUpdate bool    `json:"auto_update"`
+	Enabled       bool    `json:"enabled"`
+	Volume        float64 `json:"volume"`
+	AutoUpdate    bool    `json:"auto_update"`
+	Notifications bool    `json:"notifications"`
 }
 
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() Config {
 	return Config{
-		Enabled:    true,
-		Volume:     0.8,
-		AutoUpdate: true,
+		Enabled:       true,
+		Volume:        0.8,
+		AutoUpdate:    true,
+		Notifications: true,
 	}
+}
+
+// IconPath returns the path to the notification icon.
+func IconPath() string {
+	return filepath.Join(DataDir(), "icon.png")
 }
 
 // Load reads config from disk, falling back to defaults.
