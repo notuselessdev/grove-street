@@ -209,12 +209,13 @@ func cmdSetup() {
 		fmt.Println("[CJ] Default config written to", config.ConfigPath())
 	}
 
-	// Find binary path
+	// Find binary path — prefer the symlink (e.g., /opt/homebrew/bin/grove-street)
+	// over the resolved Cellar path, so hooks survive brew upgrades.
 	binPath, err := os.Executable()
 	if err != nil {
 		binPath = "grove-street"
 	}
-	binPath, _ = filepath.EvalSymlinks(binPath)
+	// Don't resolve symlinks — keep the stable /opt/homebrew/bin/ path
 
 	// Register hooks for IDEs
 	type ideInfo struct {
@@ -654,6 +655,16 @@ func dirExists(path string) bool {
 	return err == nil && info.IsDir()
 }
 
+// soundToPhrase converts a filename like "ah_shit_here_we_go_again.mp3" to "Ah shit here we go again"
+func soundToPhrase(filename string) string {
+	name := strings.TrimSuffix(filename, filepath.Ext(filename))
+	name = strings.ReplaceAll(name, "_", " ")
+	if len(name) > 0 {
+		name = strings.ToUpper(name[:1]) + name[1:]
+	}
+	return name
+}
+
 func isAudio(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	return ext == ".wav" || ext == ".mp3" || ext == ".ogg"
@@ -670,14 +681,6 @@ var categoryTitles = map[string]string{
 	"user_spam":      "Chill out, man!",
 }
 
-var categoryMessages = map[string]string{
-	"session_start":  "Grove Street. Home.",
-	"task_complete":  "Respect+",
-	"task_error":     "Something went wrong, fool!",
-	"input_required": "Your input is needed.",
-	"resource_limit": "Context getting tight.",
-	"user_spam":      "You trippin'.",
-}
 
 // installIcon copies the icon from the binary's directory to the data directory.
 func installIcon() {
@@ -753,10 +756,9 @@ func notify(category, soundFile string, cfg config.Config) {
 	if title == "" {
 		title = "Grove Street"
 	}
-	message := categoryMessages[category]
-	if message == "" {
-		message = soundFile
-	}
+
+	// Use the sound filename as the message (e.g., "ah_shit_here_we_go_again.mp3" → "Ah shit here we go again")
+	message := soundToPhrase(soundFile)
 
 	overlayScript := findOverlayScript()
 	if overlayScript == "" {
