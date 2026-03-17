@@ -1,22 +1,24 @@
 #!/usr/bin/env osascript -l JavaScript
-// mac-overlay.js — Native macOS-style notification overlay for Grove Street
-// Usage: osascript -l JavaScript mac-overlay.js <title> <message> <icon_path> <dismiss_seconds> [bundle_id] [app_label]
+// mac-overlay.js — Liquid glass notification overlay for Grove Street
+// Usage: osascript -l JavaScript mac-overlay.js <sender> <phrase> <icon_path> <dismiss_seconds> [bundle_id] [project_name]
 //
-// Apple-style notification: top-right, rounded, translucent dark background.
+// Chat notification style: "Carl Johnson in project-name" + voice line phrase.
+// Liquid glass aesthetic: translucent blur, glass edge border, top edge highlight.
 // Click to focus the target app. Auto-dismisses.
 
 ObjC.import('Cocoa');
 
 function run(argv) {
-  var title    = argv[0] || 'Grove Street';
-  var message  = argv[1] || '';
-  var iconPath = argv[2] || '';
-  var dismiss  = argv[3] !== undefined ? parseFloat(argv[3]) : 4;
+  var senderName  = argv[0] || 'Carl Johnson';
+  var phrase      = argv[1] || '';
+  var iconPath    = argv[2] || '';
+  var dismiss     = argv[3] !== undefined ? parseFloat(argv[3]) : 4;
   if (isNaN(dismiss)) dismiss = 4;
-  var bundleId = argv[4] || '';
-  var appName = argv[5] || 'GROVE STREET';
+  var bundleId    = argv[4] || '';
+  var projectName = argv[5] || 'grove-street';
 
-  var winWidth = 360, winHeight = 76;
+  var winWidth = 360, winHeight = 68;
+  var cornerR = 20;
 
   $.NSApplication.sharedApplication;
   $.NSApp.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
@@ -49,6 +51,7 @@ function run(argv) {
   });
   var clickHandler = $.GroveClickHandler.alloc.init;
 
+
   var screens = $.NSScreen.screens;
   var screenCount = screens.count;
 
@@ -69,7 +72,6 @@ function run(argv) {
       false
     );
 
-    // Dark translucent background — Apple style
     win.setBackgroundColor($.NSColor.clearColor);
     win.setOpaque(false);
     win.setAlphaValue(0.0);
@@ -80,20 +82,46 @@ function run(argv) {
     );
     win.setHasShadow(true);
 
+
     var contentView = win.contentView;
     contentView.wantsLayer = true;
 
-    // Visual effect view for native blur
+    // Liquid glass — translucent blur, slightly see-through
     var effectView = $.NSVisualEffectView.alloc.initWithFrame(
       $.NSMakeRect(0, 0, winWidth, winHeight)
     );
     effectView.setMaterial($.NSVisualEffectMaterialHUDWindow);
     effectView.setBlendingMode($.NSVisualEffectBlendingModeBehindWindow);
     effectView.setState($.NSVisualEffectStateActive);
+    effectView.setAlphaValue(0.82);
     effectView.wantsLayer = true;
-    effectView.layer.cornerRadius = 16;
+    effectView.layer.cornerRadius = cornerR;
     effectView.layer.masksToBounds = true;
     contentView.addSubview(effectView);
+
+    // Glass edge border
+    var borderBox = $.NSBox.alloc.initWithFrame(
+      $.NSMakeRect(0, 0, winWidth, winHeight)
+    );
+    borderBox.setBoxType($.NSBoxCustom);
+    borderBox.setCornerRadius(cornerR);
+    borderBox.setBorderWidth(0.5);
+    borderBox.setBorderColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.25));
+    borderBox.setFillColor($.NSColor.clearColor);
+    borderBox.setTransparent(false);
+    effectView.addSubview(borderBox);
+
+    // Top edge static highlight
+    var edgeShine = $.NSBox.alloc.initWithFrame(
+      $.NSMakeRect(30, winHeight - 1.5, winWidth - 60, 0.5)
+    );
+    edgeShine.setBoxType($.NSBoxCustom);
+    edgeShine.setCornerRadius(0.25);
+    edgeShine.setBorderWidth(0);
+    edgeShine.setBorderColor($.NSColor.clearColor);
+    edgeShine.setFillColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.18));
+    edgeShine.setTransparent(false);
+    effectView.addSubview(edgeShine);
 
     var textX = 14, textWidth = winWidth - 28;
 
@@ -101,73 +129,54 @@ function run(argv) {
     if (iconPath !== '' && $.NSFileManager.defaultManager.fileExistsAtPath(iconPath)) {
       var iconImage = $.NSImage.alloc.initWithContentsOfFile(iconPath);
       if (iconImage && !iconImage.isNil()) {
-        var iconSize = 40;
+        var iconSz = 40;
         var iconView = $.NSImageView.alloc.initWithFrame(
-          $.NSMakeRect(14, (winHeight - iconSize) / 2, iconSize, iconSize)
+          $.NSMakeRect(14, (winHeight - iconSz) / 2, iconSz, iconSz)
         );
         iconView.setImage(iconImage);
         iconView.setImageScaling($.NSImageScaleProportionallyUpOrDown);
         iconView.wantsLayer = true;
-        iconView.layer.cornerRadius = 8;
+        iconView.layer.cornerRadius = 10;
         iconView.layer.masksToBounds = true;
         effectView.addSubview(iconView);
-        textX = 14 + iconSize + 10;
+        textX = 14 + iconSz + 10;
         textWidth = winWidth - textX - 14;
       }
     }
 
-    // Vertically center the 3-line text block
-    // App name (14) + gap (2) + title (18) + gap (1) + message (16) = 51
-    var textBlockHeight = 14 + 2 + 18 + 1 + 16;
-    var textBlockY = (winHeight - textBlockHeight) / 2;  // bottom of text block
+    // Two-line chat-style layout, vertically centered
+    var lineHeight1 = 18;
+    var lineHeight2 = 16;
+    var gap = 2;
+    var totalHeight = lineHeight1 + gap + lineHeight2;
+    var baseY = (winHeight - totalHeight) / 2;
 
-    // App/project name — top line
-    var appFont = $.NSFont.boldSystemFontOfSize(11);
-    var appNameY = textBlockY + textBlockHeight - 14;
-    var appNameLabel = $.NSTextField.alloc.initWithFrame(
-      $.NSMakeRect(textX, appNameY, textWidth, 14)
+    // Line 1: "Carl Johnson in project-name"
+    var senderLabel = $.NSTextField.alloc.initWithFrame(
+      $.NSMakeRect(textX, baseY + lineHeight2 + gap, textWidth, lineHeight1)
     );
-    appNameLabel.setStringValue($(appName));
-    appNameLabel.setBezeled(false);
-    appNameLabel.setDrawsBackground(false);
-    appNameLabel.setEditable(false);
-    appNameLabel.setSelectable(false);
-    appNameLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.7));
-    appNameLabel.setFont(appFont);
-    appNameLabel.setLineBreakMode($.NSLineBreakByTruncatingTail);
-    effectView.addSubview(appNameLabel);
+    senderLabel.setStringValue($(senderName + ' in ' + projectName));
+    senderLabel.setBezeled(false);
+    senderLabel.setDrawsBackground(false);
+    senderLabel.setEditable(false);
+    senderLabel.setSelectable(false);
+    senderLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.95));
+    senderLabel.setFont($.NSFont.boldSystemFontOfSize(13.5));
+    senderLabel.setLineBreakMode($.NSLineBreakByTruncatingTail);
+    effectView.addSubview(senderLabel);
 
-    // Title — main line, bold
-    var titleFont = $.NSFont.boldSystemFontOfSize(14);
-    var titleHeight = 18;
-    var titleY = appNameY - 2 - titleHeight;
-    var titleLabel = $.NSTextField.alloc.initWithFrame(
-      $.NSMakeRect(textX, titleY, textWidth, titleHeight)
-    );
-    titleLabel.setStringValue($(title));
-    titleLabel.setBezeled(false);
-    titleLabel.setDrawsBackground(false);
-    titleLabel.setEditable(false);
-    titleLabel.setSelectable(false);
-    titleLabel.setTextColor($.NSColor.whiteColor);
-    titleLabel.setFont(titleFont);
-    titleLabel.setLineBreakMode($.NSLineBreakByTruncatingTail);
-    titleLabel.cell.setWraps(false);
-    effectView.addSubview(titleLabel);
-
-    // Subtitle — sound phrase
-    if (message) {
-      var msgFont = $.NSFont.systemFontOfSize(12);
+    // Line 2: voice line phrase
+    if (phrase) {
       var msgLabel = $.NSTextField.alloc.initWithFrame(
-        $.NSMakeRect(textX, titleY - 1 - 16, textWidth, 16)
+        $.NSMakeRect(textX, baseY, textWidth, lineHeight2)
       );
-      msgLabel.setStringValue($(message));
+      msgLabel.setStringValue($(phrase));
       msgLabel.setBezeled(false);
       msgLabel.setDrawsBackground(false);
       msgLabel.setEditable(false);
       msgLabel.setSelectable(false);
       msgLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.55));
-      msgLabel.setFont(msgFont);
+      msgLabel.setFont($.NSFont.systemFontOfSize(12));
       msgLabel.setLineBreakMode($.NSLineBreakByTruncatingTail);
       msgLabel.cell.setWraps(false);
       effectView.addSubview(msgLabel);
@@ -183,15 +192,12 @@ function run(argv) {
     effectView.addSubview(btn);
 
     win.orderFrontRegardless;
-
-    // Fade in
     win.animator.setAlphaValue(1.0);
+
   }
 
-  // Auto-dismiss with fade out
+  // Auto-dismiss
   if (dismiss > 0) {
-    // Fade out slightly before dismiss
-    var fadeTime = Math.min(0.5, dismiss * 0.2);
     $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
       dismiss,
       $.NSApp,

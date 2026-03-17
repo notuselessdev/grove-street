@@ -97,7 +97,7 @@ func cmdHook() {
 		return
 	}
 	player.Play(path, cfg.Volume)
-	notify(category, filepath.Base(path), cfg)
+	notify(filepath.Base(path), cfg)
 }
 
 // normalizeEvent converts IDE-specific JSON payloads into a hooks.Event.
@@ -672,15 +672,6 @@ func isAudio(name string) bool {
 
 // --- Notifications ---
 
-var categoryTitles = map[string]string{
-	"session_start":  "Ah shit, here we go again.",
-	"task_complete":  "Mission Passed!",
-	"task_error":     "Wasted!",
-	"input_required": "Yo CJ!",
-	"resource_limit": "Running low, homie!",
-	"user_spam":      "Chill out, man!",
-}
-
 
 // installIcon copies the icon from the binary's directory to the data directory.
 func installIcon() {
@@ -743,7 +734,7 @@ func installOverlayScript() {
 	}
 }
 
-func notify(category, soundFile string, cfg config.Config) {
+func notify(soundFile string, cfg config.Config) {
 	if !cfg.Notifications {
 		return
 	}
@@ -752,13 +743,8 @@ func notify(category, soundFile string, cfg config.Config) {
 		return
 	}
 
-	title := categoryTitles[category]
-	if title == "" {
-		title = "Grove Street"
-	}
-
-	// Use the sound filename as the message (e.g., "ah_shit_here_we_go_again.mp3" → "Ah shit here we go again")
-	message := soundToPhrase(soundFile)
+	// Voice line phrase from the sound filename
+	phrase := soundToPhrase(soundFile)
 
 	overlayScript := findOverlayScript()
 	if overlayScript == "" {
@@ -770,15 +756,15 @@ func notify(category, soundFile string, cfg config.Config) {
 	// Detect which app to focus on click
 	bundleID := detectParentApp()
 
-	// Use the current working directory as the project label
-	appLabel := "GROVE STREET"
+	// Project name from current working directory
+	projectName := "grove-street"
 	if wd, err := os.Getwd(); err == nil {
-		appLabel = strings.ToUpper(filepath.Base(wd))
+		projectName = filepath.Base(wd)
 	}
 
 	args := []string{
 		"-l", "JavaScript", overlayScript,
-		title, message, iconPath, "7", bundleID, appLabel,
+		"Carl Johnson", phrase, iconPath, "7", bundleID, projectName,
 	}
 
 	cmd := exec.Command("osascript", args...)
