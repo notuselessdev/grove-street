@@ -182,9 +182,13 @@ go build -o grove-street ./cmd/grove-street
 ./grove-street setup
 ```
 
+## Disclaimer
+
+Grove Street is a fan project and is not affiliated with or endorsed by Rockstar Games or Take-Two Interactive. GTA San Andreas and all related characters, voice lines, and assets are property of their respective owners. This project is intended for personal, non-commercial use.
+
 ## License
 
-MIT
+MIT — applies to the source code only. Audio assets from GTA San Andreas are the property of Rockstar Games / Take-Two Interactive and are not covered by this license.
 
 ---
 
