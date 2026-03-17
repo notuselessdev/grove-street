@@ -19,6 +19,10 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="Platform">
 </p>
 
+<p align="center">
+  <video src="notification-demo.mp4" autoplay loop muted playsinline width="700"></video>
+</p>
+
 ---
 
 Grove Street plays Carl Johnson voice lines when your AI agent finishes work, hits an error, needs input, or runs low on context. Native notifications with CJ's face pop up on screen. Multiple notifications stack and reflow when dismissed.
