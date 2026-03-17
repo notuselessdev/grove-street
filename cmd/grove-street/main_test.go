@@ -199,7 +199,7 @@ func TestMapKiroEvent(t *testing.T) {
 
 func TestDetectParentApp(t *testing.T) {
 	// Default should return some bundle ID
-	got := detectParentApp()
+	got, _ := detectParentApp()
 	if got == "" {
 		t.Error("detectParentApp() returned empty string")
 	}

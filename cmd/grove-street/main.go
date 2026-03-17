@@ -934,8 +934,8 @@ func notify(soundFile string, category string, cfg config.Config) {
 
 	iconPath := config.IconPath()
 
-	// Detect which app to focus on click
-	bundleID := detectParentApp()
+	// Detect which app and exact window to focus on click
+	bundleID, appPID := detectParentApp()
 
 	// Project name from current working directory
 	projectName := "grove-street"
@@ -960,6 +960,7 @@ func notify(soundFile string, category string, cfg config.Config) {
 	notifyArgs := []string{
 		"Carl Johnson", phrase, iconPath, durationStr, bundleID, projectName, position,
 		fmt.Sprintf("%d", slotIndex), slotDir, categoryLabel(category),
+		fmt.Sprintf("%d", appPID),
 	}
 
 	var cmd *exec.Cmd
@@ -1070,24 +1071,71 @@ func findInPaths(name string) string {
 	return ""
 }
 
-// detectParentApp tries to find the bundle ID of the terminal/IDE running us.
-func detectParentApp() string {
-	// Check common environment hints
-	if os.Getenv("TERM_PROGRAM") == "iTerm.app" {
-		return "com.googlecode.iterm2"
+// detectParentApp walks the process tree to find the IDE/terminal that launched
+// this hook. Returns the bundle ID and the PID of the matched process so
+// grove-notify can activate the exact window (important when multiple windows
+// of the same app are open).
+func detectParentApp() (bundleID string, pid int32) {
+	type ideMatch struct {
+		substr   string
+		bundleID string
 	}
-	if os.Getenv("TERM_PROGRAM") == "Apple_Terminal" {
-		return "com.apple.Terminal"
+	ides := []ideMatch{
+		{"Cursor", "com.todesktop.230313mzl4w4u92"},
+		{"cursor", "com.todesktop.230313mzl4w4u92"},
+		{"Code", "com.microsoft.VSCode"},
+		{"Windsurf", "com.codeium.windsurf"},
+		{"iTerm2", "com.googlecode.iterm2"},
+		{"Warp", "dev.warp.Warp-Stable"},
+		{"Terminal", "com.apple.Terminal"},
 	}
-	if os.Getenv("TERM_PROGRAM") == "vscode" {
-		return "com.microsoft.VSCode"
+
+	current := os.Getpid()
+	for i := 0; i < 12; i++ {
+		ppid, name := parentProcessInfo(current)
+		if ppid <= 1 || name == "" {
+			break
+		}
+		for _, ide := range ides {
+			if strings.Contains(name, ide.substr) {
+				return ide.bundleID, int32(ppid)
+			}
+		}
+		current = ppid
 	}
-	if os.Getenv("TERM_PROGRAM") == "WarpTerminal" {
-		return "dev.warp.Warp-Stable"
+
+	// Fallback to environment variables
+	switch os.Getenv("TERM_PROGRAM") {
+	case "iTerm.app":
+		return "com.googlecode.iterm2", 0
+	case "Apple_Terminal":
+		return "com.apple.Terminal", 0
+	case "vscode":
+		return "com.microsoft.VSCode", 0
+	case "WarpTerminal":
+		return "dev.warp.Warp-Stable", 0
 	}
 	if os.Getenv("CURSOR_TRACE_ID") != "" {
-		return "com.todesktop.230313mzl4w4u92"
+		return "com.todesktop.230313mzl4w4u92", 0
 	}
-	// Default to Terminal
-	return "com.apple.Terminal"
+	return "com.apple.Terminal", 0
+}
+
+// parentProcessInfo returns the parent PID and a searchable string combining
+// the process name and full executable path for the given PID.
+func parentProcessInfo(pid int) (ppid int, name string) {
+	// Use command= (full path) so we can match "Warp" in /Applications/Warp.app/...
+	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "ppid=,command=").Output()
+	if err != nil {
+		return 0, ""
+	}
+	line := strings.TrimSpace(string(out))
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return 0, ""
+	}
+	ppid, _ = strconv.Atoi(fields[0])
+	// Use first token of command (the executable path) for matching
+	name = fields[1]
+	return
 }

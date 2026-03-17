@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 // grove-notify.swift — Native macOS notification overlay for Grove Street
-// Usage: grove-notify <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label]
+// Usage: grove-notify <sender> <phrase> <icon_path> <dismiss_seconds> <bundle_id> <project_name> <position> <slot_index> <slot_dir> [category_label] [app_pid]
 //
 // Positions: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right, center
 
@@ -19,6 +19,7 @@ let position     = args.count > 6 ? args[6] : "top-right"
 var slotIndex       = args.count > 7 ? Int(args[7]) ?? 0 : 0
 let slotDir         = args.count > 8 ? args[8] : ""
 let categoryLabel   = args.count > 9 ? args[9] : ""
+let appPid          = args.count > 10 ? pid_t(args[10]) ?? 0 : 0
 
 let winWidth: CGFloat = 360
 let winHeight: CGFloat = 68
@@ -244,10 +245,12 @@ for screen in NSScreen.screens {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
-        if !bundleId.isEmpty {
-            if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
-                targetApp.activate()
-            }
+        // Prefer activating by PID for exact window targeting (multiple windows)
+        if appPid > 0, let targetApp = NSRunningApplication(processIdentifier: appPid) {
+            targetApp.activate()
+        } else if !bundleId.isEmpty,
+                  let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
+            targetApp.activate()
         }
         cleanupSlot()
     }
