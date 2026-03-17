@@ -405,7 +405,7 @@ func kiroConfigDir() string {
 func registerClaudeHooks(binPath string) error {
 	settingsPath := filepath.Join(claudeConfigDir(), "settings.json")
 	hookCmd := binPath + " hook"
-	events := []string{"Stop", "Notification", "SubagentStop", "PreCompact", "PermissionRequest"}
+	events := []string{"SessionStart", "Stop", "Notification", "SubagentStop", "PreCompact", "PermissionRequest"}
 	return registerJSONHooks(settingsPath, "hooks", hookCmd, events)
 }
 
