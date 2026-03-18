@@ -35,6 +35,12 @@ func main() {
 		cmdPlay()
 	case "list":
 		cmdList()
+	case "stop":
+		cmdStop()
+	case "resume":
+		cmdResume()
+	case "fix":
+		cmdFix()
 	case "update":
 		cmdUpdate()
 	case "uninstall":
@@ -434,6 +440,287 @@ func cmdUninstall() {
 	fmt.Printf("  rm -rf %s\n", config.DataDir())
 }
 
+// cmdStop disables grove-street by setting enabled=false in config.
+func cmdStop() {
+	cfg := config.Load()
+	if !cfg.Enabled {
+		fmt.Println("[CJ] Already stopped. CJ is taking a break.")
+		return
+	}
+	cfg.Enabled = false
+	config.Save(cfg)
+	fmt.Println("[CJ] Stopped. CJ is taking a break — no more sounds until you 'grove-street resume'.")
+}
+
+// cmdResume re-enables grove-street by setting enabled=true in config.
+func cmdResume() {
+	cfg := config.Load()
+	if cfg.Enabled {
+		fmt.Println("[CJ] Already running. CJ never left.")
+		return
+	}
+	cfg.Enabled = true
+	config.Save(cfg)
+	fmt.Println("[CJ] Resumed. Grove Street is back, baby!")
+}
+
+// cmdFix validates and repairs hook registrations for all detected IDEs.
+func cmdFix() {
+	binPath, err := os.Executable()
+	if err != nil {
+		binPath = "grove-street"
+	}
+
+	type ideCheck struct {
+		name      string
+		configDir string
+		checkFn   func(string) ([]string, error)
+		fixFn     func(string) error
+	}
+
+	checks := []ideCheck{
+		{"Claude Code", claudeConfigDir(), checkClaudeHooks, func(bin string) error { return registerClaudeHooks(bin) }},
+		{"Cursor", cursorConfigDir(), checkCursorHooks, func(bin string) error { return registerCursorHooks(bin) }},
+		{"Windsurf", windsurfConfigDir(), checkWindsurfHooks, func(bin string) error { return registerWindsurfHooks(bin) }},
+		{"GitHub Copilot", copilotConfigDir(), checkCopilotHooks, func(bin string) error { return registerCopilotHooks(bin) }},
+		{"Kiro", kiroConfigDir(), checkKiroHooks, func(bin string) error { return registerKiroHooks(bin) }},
+	}
+
+	anyChecked := false
+	anyFixed := false
+
+	for _, ide := range checks {
+		if !dirExists(ide.configDir) {
+			continue
+		}
+		anyChecked = true
+
+		issues, err := ide.checkFn(binPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[CJ] Error checking %s: %v\n", ide.name, err)
+			continue
+		}
+
+		if len(issues) == 0 {
+			fmt.Printf("[CJ] %s — hooks OK\n", ide.name)
+			continue
+		}
+
+		for _, issue := range issues {
+			fmt.Printf("[CJ] %s — %s\n", ide.name, issue)
+		}
+
+		if err := ide.fixFn(binPath); err != nil {
+			fmt.Fprintf(os.Stderr, "[CJ] Failed to fix %s: %v\n", ide.name, err)
+		} else {
+			fmt.Printf("[CJ] %s — fixed!\n", ide.name)
+			anyFixed = true
+		}
+	}
+
+	if !anyChecked {
+		fmt.Fprintln(os.Stderr, "[CJ] No IDE config directories found. Run 'grove-street setup' first.")
+		return
+	}
+
+	if anyFixed {
+		fmt.Println("\n[CJ] All patched up. Grove Street stays clean.")
+	} else {
+		fmt.Println("\n[CJ] Everything looks good. Nothing to fix.")
+	}
+}
+
+// checkClaudeHooks validates Claude Code hook entries and returns a list of issues.
+func checkClaudeHooks(binPath string) ([]string, error) {
+	settingsPath := filepath.Join(claudeConfigDir(), "settings.json")
+	expectedEvents := []string{"SessionStart", "Stop", "Notification", "SubagentStop", "PreCompact", "PermissionRequest"}
+	return checkJSONHooksPerEvent(settingsPath, "hooks", binPath+" hook", expectedEvents)
+}
+
+// checkCursorHooks validates Cursor hook entries.
+func checkCursorHooks(binPath string) ([]string, error) {
+	settingsPath := filepath.Join(cursorConfigDir(), "hooks.json")
+	expectedEvents := []string{"stop", "beforeShellExecution", "beforeMCPExecution"}
+	return checkJSONHooks(settingsPath, "hooks", binPath+" hook --source cursor", expectedEvents)
+}
+
+// checkWindsurfHooks validates Windsurf hook entries.
+func checkWindsurfHooks(binPath string) ([]string, error) {
+	settingsPath := filepath.Join(windsurfConfigDir(), "hooks.json")
+	expectedEvents := []string{"post_cascade_response", "pre_user_prompt"}
+	return checkJSONHooks(settingsPath, "hooks", binPath+" hook --source windsurf", expectedEvents)
+}
+
+// checkCopilotHooks validates GitHub Copilot hook entries.
+func checkCopilotHooks(binPath string) ([]string, error) {
+	settingsPath := filepath.Join(copilotConfigDir(), "hooks", "hooks.json")
+	expectedEvents := []string{"sessionStart", "postToolUse", "errorOccurred"}
+	return checkJSONHooks(settingsPath, "hooks", binPath+" hook --source copilot", expectedEvents)
+}
+
+// checkKiroHooks validates Kiro hook entries.
+func checkKiroHooks(binPath string) ([]string, error) {
+	agentPath := filepath.Join(kiroConfigDir(), "agents", "grove-street.json")
+	hookCmd := binPath + " hook --source kiro"
+	expectedEvents := []string{"agentSpawn", "stop", "userPromptSubmit"}
+	return checkKiroAgentFile(agentPath, hookCmd, expectedEvents), nil
+}
+
+// checkKiroAgentFile validates a Kiro agent JSON file for expected hook commands.
+func checkKiroAgentFile(agentPath, hookCmd string, expectedEvents []string) []string {
+	data, err := os.ReadFile(agentPath)
+	if err != nil {
+		return []string{"grove-street.json not found"}
+	}
+
+	var kiroConfig map[string]interface{}
+	if err := json.Unmarshal(data, &kiroConfig); err != nil {
+		return []string{"grove-street.json is malformed"}
+	}
+
+	hooksMap, ok := kiroConfig["hooks"].(map[string]interface{})
+	if !ok {
+		return []string{"hooks section missing"}
+	}
+
+	var issues []string
+	for _, event := range expectedEvents {
+		arr, ok := hooksMap[event].([]interface{})
+		if !ok || len(arr) == 0 {
+			issues = append(issues, fmt.Sprintf("missing event %q", event))
+			continue
+		}
+		if !hookArrayContainsCmd(arr, hookCmd) {
+			issues = append(issues, fmt.Sprintf("wrong binary path for event %q", event))
+		}
+	}
+
+	return issues
+}
+
+// checkJSONHooksPerEvent validates per-event hook entries (Claude Code format).
+func checkJSONHooksPerEvent(path, hooksKey, baseCmd string, expectedEvents []string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []string{"config file not found"}, nil
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return []string{"config file is malformed JSON"}, nil
+	}
+
+	hooksMap, ok := settings[hooksKey].(map[string]interface{})
+	if !ok {
+		return []string{"no hooks section found"}, nil
+	}
+
+	var issues []string
+	for _, event := range expectedEvents {
+		hookCmd := baseCmd + " --event " + event
+
+		arr, ok := hooksMap[event].([]interface{})
+		if !ok || len(arr) == 0 {
+			issues = append(issues, fmt.Sprintf("missing event %q", event))
+			continue
+		}
+
+		found := false
+		for _, h := range arr {
+			if containsGroveStreet(h) {
+				found = true
+				if !hookEntryHasCmd(h, hookCmd) {
+					issues = append(issues, fmt.Sprintf("wrong binary path for event %q", event))
+				}
+				break
+			}
+		}
+		if !found {
+			issues = append(issues, fmt.Sprintf("missing grove-street hook for event %q", event))
+		}
+	}
+
+	return issues, nil
+}
+
+// checkJSONHooks validates shared-command hook entries (Cursor, Windsurf, Copilot format).
+func checkJSONHooks(path, hooksKey, hookCmd string, expectedEvents []string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []string{"config file not found"}, nil
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return []string{"config file is malformed JSON"}, nil
+	}
+
+	hooksMap, ok := settings[hooksKey].(map[string]interface{})
+	if !ok {
+		return []string{"no hooks section found"}, nil
+	}
+
+	var issues []string
+	for _, event := range expectedEvents {
+		arr, ok := hooksMap[event].([]interface{})
+		if !ok || len(arr) == 0 {
+			issues = append(issues, fmt.Sprintf("missing event %q", event))
+			continue
+		}
+
+		found := false
+		for _, h := range arr {
+			if containsGroveStreet(h) {
+				found = true
+				if !hookEntryHasCmd(h, hookCmd) {
+					issues = append(issues, fmt.Sprintf("wrong binary path for event %q", event))
+				}
+				break
+			}
+		}
+		if !found {
+			issues = append(issues, fmt.Sprintf("missing grove-street hook for event %q", event))
+		}
+	}
+
+	return issues, nil
+}
+
+// hookEntryHasCmd checks if a hook entry has the exact expected command.
+func hookEntryHasCmd(h interface{}, expectedCmd string) bool {
+	m, ok := h.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	// Nested format: {"hooks": [{"command": "..."}]}
+	if hooksArr, ok := m["hooks"].([]interface{}); ok {
+		for _, hk := range hooksArr {
+			if hm, ok := hk.(map[string]interface{}); ok {
+				if cmd, ok := hm["command"].(string); ok && cmd == expectedCmd {
+					return true
+				}
+			}
+		}
+	}
+	// Flat format: {"command": "..."}
+	if cmd, ok := m["command"].(string); ok && cmd == expectedCmd {
+		return true
+	}
+	return false
+}
+
+// hookArrayContainsCmd checks if any entry in a Kiro-style hook array has the expected command.
+func hookArrayContainsCmd(arr []interface{}, expectedCmd string) bool {
+	for _, h := range arr {
+		if m, ok := h.(map[string]interface{}); ok {
+			if cmd, ok := m["command"].(string); ok && cmd == expectedCmd {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func printUsage() {
 	fmt.Println(`Grove Street — GTA San Andreas voice notifications for AI coding agents
 
@@ -447,6 +734,9 @@ Commands:
   setup [--ide <name>]  Register hooks for detected IDEs
   play <category>       Test-play a random sound from a category
   list                  List all installed sounds
+  stop                  Disable notifications (CJ takes a break)
+  resume                Re-enable notifications (CJ comes back)
+  fix                   Validate and repair hook registrations
   update                Check for updates
   uninstall             Remove all hooks
   version               Print version

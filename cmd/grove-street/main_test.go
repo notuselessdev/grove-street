@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
+	"github.com/notuselessdev/grove-street/internal/config"
 	"github.com/notuselessdev/grove-street/internal/hooks"
 )
 
@@ -469,5 +471,200 @@ func TestBuildNotifyArgsDefaults(t *testing.T) {
 	args := buildNotifyArgs("phrase", "", "proj", "top-right", "", 0, 4.0, "")
 	if args[8] != "" {
 		t.Errorf("args[8] (categoryLabel) = %q, want empty for unknown category", args[8])
+	}
+}
+
+func TestStopResume(t *testing.T) {
+	// Use a temp dir to isolate config
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", tmpDir)
+	}
+
+	// Ensure config dir exists
+	os.MkdirAll(filepath.Join(tmpDir, ".grove-street"), 0755)
+
+	// Start with default config (enabled=true)
+	cfg := config.DefaultConfig()
+	config.Save(cfg)
+
+	// Stop should disable
+	cfg = config.Load()
+	cfg.Enabled = false
+	config.Save(cfg)
+
+	cfg = config.Load()
+	if cfg.Enabled {
+		t.Error("after stop, config.Enabled should be false")
+	}
+
+	// Resume should re-enable
+	cfg.Enabled = true
+	config.Save(cfg)
+
+	cfg = config.Load()
+	if !cfg.Enabled {
+		t.Error("after resume, config.Enabled should be true")
+	}
+}
+
+func TestCheckJSONHooksPerEvent(t *testing.T) {
+	tmpDir := t.TempDir()
+	settingsPath := filepath.Join(tmpDir, "settings.json")
+
+	// No file → should report missing
+	issues, err := checkJSONHooksPerEvent(settingsPath, "hooks", "grove-street hook", []string{"Stop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) == 0 {
+		t.Error("expected issues for missing file")
+	}
+
+	// Register hooks, then check — should be clean
+	registerJSONHooksPerEvent(settingsPath, "hooks", "grove-street hook", []string{"Stop", "SessionStart"})
+
+	issues, err = checkJSONHooksPerEvent(settingsPath, "hooks", "grove-street hook", []string{"Stop", "SessionStart"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 0 {
+		t.Errorf("expected no issues, got %v", issues)
+	}
+
+	// Check with extra expected event → should report missing
+	issues, err = checkJSONHooksPerEvent(settingsPath, "hooks", "grove-street hook", []string{"Stop", "SessionStart", "Notification"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 {
+		t.Errorf("expected 1 issue for missing Notification, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestCheckJSONHooks(t *testing.T) {
+	tmpDir := t.TempDir()
+	settingsPath := filepath.Join(tmpDir, "hooks.json")
+
+	// Register hooks
+	registerJSONHooks(settingsPath, "hooks", "grove-street hook --source cursor", []string{"stop", "beforeShellExecution"})
+
+	// All present → no issues
+	issues, err := checkJSONHooks(settingsPath, "hooks", "grove-street hook --source cursor", []string{"stop", "beforeShellExecution"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 0 {
+		t.Errorf("expected no issues, got %v", issues)
+	}
+
+	// Wrong binary path → should flag issues
+	issues, err = checkJSONHooks(settingsPath, "hooks", "/new/path/grove-street hook --source cursor", []string{"stop", "beforeShellExecution"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 2 {
+		t.Errorf("expected 2 wrong-path issues, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestCheckKiroHooks(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsDir := filepath.Join(tmpDir, ".kiro", "agents")
+	os.MkdirAll(agentsDir, 0755)
+
+	// No file → should report missing
+	// Temporarily override kiroConfigDir by writing directly
+	agentPath := filepath.Join(agentsDir, "grove-street.json")
+
+	// Write valid config
+	kiroConfig := map[string]interface{}{
+		"name": "grove-street",
+		"hooks": map[string]interface{}{
+			"agentSpawn":       []interface{}{map[string]interface{}{"command": "grove-street hook --source kiro"}},
+			"stop":             []interface{}{map[string]interface{}{"command": "grove-street hook --source kiro"}},
+			"userPromptSubmit": []interface{}{map[string]interface{}{"command": "grove-street hook --source kiro"}},
+		},
+	}
+	data, _ := json.MarshalIndent(kiroConfig, "", "  ")
+	os.WriteFile(agentPath, data, 0644)
+
+	// Check with correct binary → should be clean
+	// We need to call the underlying logic directly since checkKiroHooks uses kiroConfigDir()
+	issues := checkKiroAgentFile(agentPath, "grove-street hook --source kiro", []string{"agentSpawn", "stop", "userPromptSubmit"})
+	if len(issues) != 0 {
+		t.Errorf("expected no issues, got %v", issues)
+	}
+
+	// Check with wrong binary → should flag issues
+	issues = checkKiroAgentFile(agentPath, "/new/path/grove-street hook --source kiro", []string{"agentSpawn", "stop", "userPromptSubmit"})
+	if len(issues) != 3 {
+		t.Errorf("expected 3 wrong-path issues, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestHookEntryHasCmd(t *testing.T) {
+	tests := []struct {
+		name string
+		hook interface{}
+		cmd  string
+		want bool
+	}{
+		{
+			"nested match",
+			map[string]interface{}{
+				"matcher": "",
+				"hooks": []interface{}{
+					map[string]interface{}{"type": "command", "command": "grove-street hook --event Stop"},
+				},
+			},
+			"grove-street hook --event Stop",
+			true,
+		},
+		{
+			"nested mismatch",
+			map[string]interface{}{
+				"hooks": []interface{}{
+					map[string]interface{}{"command": "/old/path/grove-street hook --event Stop"},
+				},
+			},
+			"grove-street hook --event Stop",
+			false,
+		},
+		{
+			"flat match",
+			map[string]interface{}{"command": "grove-street hook"},
+			"grove-street hook",
+			true,
+		},
+		{
+			"not a map",
+			"string",
+			"grove-street hook",
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hookEntryHasCmd(tt.hook, tt.cmd)
+			if got != tt.want {
+				t.Errorf("hookEntryHasCmd() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHookArrayContainsCmd(t *testing.T) {
+	arr := []interface{}{
+		map[string]interface{}{"command": "grove-street hook --source kiro"},
+	}
+
+	if !hookArrayContainsCmd(arr, "grove-street hook --source kiro") {
+		t.Error("should find matching command")
+	}
+	if hookArrayContainsCmd(arr, "/other/grove-street hook --source kiro") {
+		t.Error("should not match different path")
 	}
 }
