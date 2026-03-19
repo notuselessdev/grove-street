@@ -53,7 +53,7 @@ download_binary() {
     local url="https://github.com/$REPO/releases/download/v${version}/grove-street_${OS}_${ARCH}"
     [ "$OS" = "windows" ] && url="${url}.exe"
 
-    info "Downloading grove-street v${version} for ${OS}/${ARCH}..."
+    info "Downloading grove-street v${version} for ${OS}/${ARCH}..." >&2
 
     local tmp
     tmp="$(mktemp)"
