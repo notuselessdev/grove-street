@@ -1,15 +1,58 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.6.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Bump VERSION file and tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "$VERSION" > VERSION
+          if [ -n "$(git status --porcelain VERSION)" ]; then
+            git add VERSION
+            git commit -m "Bump version to ${VERSION}"
+            git push origin main
+          fi
+
+          # Delete existing tag if present
+          git tag -d "$TAG" 2>/dev/null || true
+          git push origin --delete "$TAG" 2>/dev/null || true
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
   build:
+    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -27,6 +70,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - uses: actions/setup-go@v5
         with:
@@ -37,7 +82,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ needs.prepare.outputs.version }}"
           EXT=""
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
           BINARY="grove-street${EXT}"
@@ -55,10 +100,12 @@ jobs:
           path: "*.tar.gz"
 
   release:
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -71,10 +118,104 @@ jobs:
             cd sounds && zip -r ../sounds.zip . && cd ..
           fi
 
+      - name: Delete existing release if present
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
           generate_release_notes: true
           files: |
             *.tar.gz
             *.zip
+
+  update-homebrew:
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute checksums from release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          REPO="${{ github.repository }}"
+
+          for arch in darwin_arm64 darwin_amd64 linux_arm64 linux_amd64; do
+            url="https://github.com/${REPO}/releases/download/${TAG}/grove-street_${arch}.tar.gz"
+            sha=$(curl -sL "$url" | shasum -a 256 | cut -d' ' -f1)
+            echo "sha_${arch}=${sha}" >> "$GITHUB_ENV"
+            echo "${arch}: ${sha}"
+          done
+
+          # Verify checksums are unique (not error pages)
+          unique=$(echo -e "${sha_darwin_arm64}\n${sha_darwin_amd64}\n${sha_linux_arm64}\n${sha_linux_amd64}" | sort -u | wc -l | tr -d ' ')
+          if [ "$unique" -lt 2 ]; then
+            echo "::error::All checksums are identical — assets may not be ready"
+            exit 1
+          fi
+
+      - name: Update Homebrew formula
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          FORMULA="Formula/grove-street.rb"
+
+          sed -i "s|version \".*\"|version \"${VERSION}\"|" "$FORMULA"
+
+          awk -v sha1="${sha_darwin_arm64}" \
+              -v sha2="${sha_darwin_amd64}" \
+              -v sha3="${sha_linux_arm64}" \
+              -v sha4="${sha_linux_amd64}" '
+          BEGIN { n=0 }
+          /sha256/ {
+              n++
+              if (n==1) { sub(/"[^"]*"/, "\"" sha1 "\"") }
+              if (n==2) { sub(/"[^"]*"/, "\"" sha2 "\"") }
+              if (n==3) { sub(/"[^"]*"/, "\"" sha3 "\"") }
+              if (n==4) { sub(/"[^"]*"/, "\"" sha4 "\"") }
+          }
+          { print }
+          ' "$FORMULA" > "${FORMULA}.tmp" && mv "${FORMULA}.tmp" "$FORMULA"
+
+      - name: Commit and push formula update
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add Formula/grove-street.rb
+          if [ -n "$(git status --porcelain Formula/grove-street.rb)" ]; then
+            git commit -m "Update Homebrew formula for ${TAG}"
+            git push origin main
+          fi
+
+      - name: Update homebrew-tap repo
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          TAP_REPO="notuselessdev/homebrew-tap"
+          FORMULA="Formula/grove-street.rb"
+
+          TAP_SHA=$(gh api "repos/${TAP_REPO}/contents/Formula/grove-street.rb" --jq '.sha' 2>/dev/null || echo "")
+          FORMULA_B64=$(base64 -w 0 < "$FORMULA")
+
+          if [ -n "$TAP_SHA" ]; then
+            gh api "repos/${TAP_REPO}/contents/Formula/grove-street.rb" \
+              -X PUT -f message="Update grove-street to ${TAG}" \
+              -f content="$FORMULA_B64" -f sha="$TAP_SHA" --silent
+          else
+            gh api "repos/${TAP_REPO}/contents/Formula/grove-street.rb" \
+              -X PUT -f message="Add grove-street ${TAG}" \
+              -f content="$FORMULA_B64" --silent
+          fi
