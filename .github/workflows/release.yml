@@ -150,17 +150,17 @@ jobs:
           TAG="${{ needs.prepare.outputs.tag }}"
           REPO="${{ github.repository }}"
 
-          declare -A shas
+          all_shas=""
           for arch in darwin_arm64 darwin_amd64 linux_arm64 linux_amd64; do
             url="https://github.com/${REPO}/releases/download/${TAG}/grove-street_${arch}.tar.gz"
             sha=$(curl -sL "$url" | shasum -a 256 | cut -d' ' -f1)
-            shas[$arch]="$sha"
+            all_shas="${all_shas}${sha}\n"
             echo "sha_${arch}=${sha}" >> "$GITHUB_ENV"
             echo "${arch}: ${sha}"
           done
 
           # Verify checksums are unique (not error pages)
-          unique=$(printf '%s\n' "${shas[@]}" | sort -u | wc -l | tr -d ' ')
+          unique=$(printf "${all_shas}" | sort -u | wc -l | tr -d ' ')
           if [ "$unique" -lt 2 ]; then
             echo "::error::All checksums are identical — assets may not be ready"
             exit 1
