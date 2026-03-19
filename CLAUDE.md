@@ -41,4 +41,32 @@ The project is a standard Go CLI with four internal packages:
 
 ## Release Process
 
-Tag `v*` triggers `.github/workflows/release.yml` which cross-compiles for darwin/linux/windows (amd64+arm64), packages sounds, and creates a GitHub Release. Homebrew formula is in `Formula/grove-street.rb` (sha256 placeholders need updating per release).
+Releases are done via the `workflow_dispatch` trigger on `.github/workflows/release.yml`. The workflow handles everything automatically — version bump, tagging, cross-compilation, GitHub Release creation, and Homebrew formula updates.
+
+### How to release
+
+1. **Trigger the workflow** from the GitHub Actions UI or CLI:
+   ```sh
+   gh workflow run release.yml -f version=X.Y.Z
+   ```
+2. **That's it.** The workflow does the rest:
+   - Bumps `VERSION` file and commits to `main`
+   - Creates (or replaces) the `vX.Y.Z` git tag
+   - Cross-compiles for darwin/linux/windows (amd64+arm64)
+   - Packages the binary + `icon.png` + notification scripts into tarballs
+   - Packages `sounds/` directory into `sounds.tar.gz` and `sounds.zip`
+   - Creates a GitHub Release with auto-generated release notes
+   - Computes sha256 checksums from the release assets
+   - Updates `Formula/grove-street.rb` with the new version and checksums, commits to `main`
+   - Pushes the updated formula to the `notuselessdev/homebrew-tap` repo (requires `HOMEBREW_TAP_TOKEN` secret)
+
+### Secrets required
+
+- `GITHUB_TOKEN` — automatic, used for releases and formula commits
+- `HOMEBREW_TAP_TOKEN` — PAT with write access to `notuselessdev/homebrew-tap`
+
+### Notes
+
+- The workflow is idempotent: re-running with the same version deletes the old tag and release first.
+- Version format is `X.Y.Z` (no `v` prefix) — the workflow adds the `v` prefix for tags.
+- Do NOT manually edit `VERSION` or tag — let the workflow handle it.

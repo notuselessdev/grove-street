@@ -62,54 +62,93 @@ Grove Street hooks into your AI coding agent's event system. When your agent doe
 
 | Event | CJ Says | When |
 |-------|---------|------|
-| Session starts | *"Grove Street. Home."* | You open a new session |
-| Task complete | *"Piece of cake!"* | Agent finishes work |
-| Error | *"All you had to do was follow the damn train, CJ!"* | Something breaks |
-| Needs input | *"So what's the plan?"* | Agent needs your approval or answer |
-| Context low | *"I gotta get outta here!"* | Context window running out |
-| Spam | *"Chill, chill!"* | You're sending messages too fast |
+| Session starts | *"It's CJ."* | You open a new session |
+| Task complete | *"Ay, ain't this fun?"* | Agent finishes work |
+| Error | *"Not this crap again."* | Something breaks |
+| Needs input | *"What you smoking?"* | Agent needs your approval or answer |
+| Context low | *"Dude, I ain't got time for this."* | Context window running out |
+| Spam | *"Dude, please shut up."* | You're sending messages too fast |
 
 ## Sound Categories
 
 Each category has multiple voice lines that play randomly:
 
 **`session_start`** — New session begins
-- "Grove Street. Home. At least it was before I fucked everything up."
 - "Ah shit, here we go again."
-- "Let's roll."
-- "Time to put in work."
-- "You picked the wrong house, fool!"
+- "Grove Street. Home."
+- "Hello."
+- "It's Carl. Carl Johnson."
+- "It's CJ."
+- "It's Carl."
+- "Who's this?"
+- "Yeah, why not."
+- "I'm just a street criminal, what can I say."
+- "Just cause I look fine, I ain't a bitch."
 
 **`task_complete`** — Work finished
-- "Piece of cake!"
-- "Easy!"
-- "Show me the money!"
-- "Nice!"
-- "Look at me now!"
+- "Ay, ain't this fun?"
+- "Cool."
+- "Do you know who I am, fool?"
+- "I appreciate that, I like yours too."
+- "It's been nice talking to you."
+- "Okay."
+- "Real funny."
+- "Thanks."
+- "Very intelligent."
+- "Yeah."
+- "You having fun yet, fool?"
+- "Respect+"
 
 **`task_error`** — Something went wrong
-- "Ah shit, here we go again."
-- "All you had to do was follow the damn train, CJ!"
-- "I hate gravity!"
-- "Shit, this happens too often!"
+- "I don't need any of this shit."
+- "I'm losing my will to live here."
+- "Inbreeding makes you dumb, huh?"
+- "Not this crap again."
+- "Oops."
+- "That's complete and utter bullshit."
+- "Well, you sound like a moron."
+- "You a professional moron?"
+- "You had a bad week, huh?"
+- "You idiot."
+- "You moron."
+- "You pathetic."
 
 **`input_required`** — Needs your input
-- "What you want?"
-- "So what's the plan?"
-- "What we gonna do now?"
-- "Say something!"
+- "Aw, what's wrong?"
+- "Can you do me a favour?"
+- "Go away."
+- "I ain't saying yeah and I ain't saying no."
+- "So you think I'm a punk, do you?"
+- "What you smoking?"
+- "You better be drunk."
+- "You OK?"
 
 **`resource_limit`** — Running low on context
-- "I gotta get outta here!"
-- "We runnin' out of time!"
-- "We on fire!"
-- "I can smell burning!"
+- "Dude, I ain't got time for this."
+- "I'll see you later, man."
+- "I'm sorry, man."
+- "It's nothing personal, I'm just a criminal."
+- "Oh, you obviously don't know who I am."
+- "You could run or get a beating. Easy choice, huh?"
+- "You picked the wrong fool to jack, homie."
 
 **`user_spam`** — Calm down
-- "Chill, chill!"
-- "Man, chill out!"
-- "Hey, relax!"
-- "Back off!"
+- "Coffee with you? No thank you."
+- "Come on dude, don't make me laugh."
+- "Dude, please shut up."
+- "Get the fuck out of here."
+- "Go away."
+- "Hey, get out of here."
+- "I don't give a fuck."
+- "Like I give a fuck what you think."
+- "My God, you boring me. Go away."
+- "No thank you."
+- "Please go away."
+- "Uh, na."
+- "We don't want your services around here no more."
+- "Whatever, dude."
+- "Whatever you do, don't ever call me again."
+- "You wanna get slapped, fool?"
 
 ## Adding Your Own Sounds
 
@@ -133,6 +172,9 @@ Grove Street picks a random file from the matching category each time.
 grove-street play <category>   # Test a sound
 grove-street list               # List all sounds
 grove-street setup              # Register hooks for detected IDEs
+grove-street stop               # Disable notifications (CJ takes a break)
+grove-street resume             # Re-enable notifications (CJ comes back)
+grove-street fix                # Validate and repair hook registrations
 grove-street update             # Check for updates
 grove-street uninstall          # Remove hooks from all IDEs
 grove-street version            # Print version
