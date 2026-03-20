@@ -108,18 +108,49 @@ EOF
     fi
 }
 
+detect_claude_version() {
+    if command -v claude &>/dev/null; then
+        claude --version 2>/dev/null | awk '{print $1}'
+    else
+        echo ""
+    fi
+}
+
+# Returns 0 (true) if Claude Code version >= 2.1.63 (nested hooks format).
+# Defaults to nested (new) format if version cannot be detected.
+claude_uses_nested_hooks() {
+    local ver
+    ver="$(detect_claude_version)"
+    if [ -z "$ver" ]; then
+        return 0  # default to new format
+    fi
+    local major minor patch
+    IFS='.' read -r major minor patch <<< "$ver"
+    major="${major:-0}"; minor="${minor:-0}"; patch="${patch:-0}"
+    if [ "$major" -gt 2 ]; then return 0; fi
+    if [ "$major" -lt 2 ]; then return 1; fi
+    if [ "$minor" -gt 1 ]; then return 0; fi
+    if [ "$minor" -lt 1 ]; then return 1; fi
+    [ "$patch" -ge 63 ]
+}
+
 register_hooks() {
     local settings_dir="$HOME/.claude"
     local settings_path="$settings_dir/settings.json"
     local bin_path="$BIN_DIR/grove-street"
+    local use_nested=true
+
+    if ! claude_uses_nested_hooks; then
+        use_nested=false
+    fi
 
     mkdir -p "$settings_dir"
 
     if [ -f "$settings_path" ]; then
         if command -v python3 &>/dev/null; then
-            python3 - "$settings_path" "$bin_path" <<'PYEOF'
+            python3 - "$settings_path" "$bin_path" "$use_nested" <<'PYEOF'
 import json, sys
-path, bin = sys.argv[1], sys.argv[2]
+path, bin, nested = sys.argv[1], sys.argv[2], sys.argv[3] == "true"
 try:
     with open(path) as f:
         settings = json.load(f)
@@ -127,13 +158,21 @@ except:
     settings = {}
 
 hook_cmd = f"{bin} hook"
-hook_entry = [{"matcher": "", "command": hook_cmd}]
 hooks = settings.get("hooks", {})
 for event in ["Stop", "Notification", "SubagentStop", "PreCompact"]:
     existing = hooks.get(event, [])
-    existing = [h for h in existing if "grove-street" not in h.get("command", "")]
-    existing.append({"matcher": "", "command": hook_cmd})
-    hooks[event] = existing
+    filtered = []
+    for h in existing:
+        cmd = h.get("command", "")
+        nested_hooks = h.get("hooks", [])
+        nested_cmds = [n.get("command", "") for n in nested_hooks if isinstance(n, dict)]
+        if "grove-street" not in cmd and not any("grove-street" in c for c in nested_cmds):
+            filtered.append(h)
+    if nested:
+        filtered.append({"matcher": "", "hooks": [{"type": "command", "command": hook_cmd}]})
+    else:
+        filtered.append({"matcher": "", "command": hook_cmd})
+    hooks[event] = filtered
 settings["hooks"] = hooks
 with open(path, "w") as f:
     json.dump(settings, f, indent=2)
@@ -143,7 +182,19 @@ PYEOF
             return
         fi
     else
-        cat > "$settings_path" <<JSONEOF
+        if [ "$use_nested" = true ]; then
+            cat > "$settings_path" <<JSONEOF
+{
+  "hooks": {
+    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}],
+    "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}],
+    "SubagentStop": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}],
+    "PreCompact": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}]
+  }
+}
+JSONEOF
+        else
+            cat > "$settings_path" <<JSONEOF
 {
   "hooks": {
     "Stop": [{"matcher": "", "command": "$bin_path hook"}],
@@ -153,6 +204,7 @@ PYEOF
   }
 }
 JSONEOF
+        fi
     fi
 
     ok "Hooks registered in Claude Code."

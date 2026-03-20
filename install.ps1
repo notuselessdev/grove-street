@@ -69,10 +69,31 @@ function Write-Config {
     }
 }
 
+function Get-ClaudeCodeVersion {
+    try {
+        $out = & claude --version 2>$null
+        if ($out -match '^(\d+\.\d+\.\d+)') {
+            return $Matches[1]
+        }
+    } catch {}
+    return $null
+}
+
+function Test-ClaudeNestedHooks {
+    $ver = Get-ClaudeCodeVersion
+    if (-not $ver) { return $true }  # default to new format
+    $parts = $ver.Split('.')
+    $major = [int]$parts[0]; $minor = [int]$parts[1]; $patch = [int]$parts[2]
+    if ($major -ne 2) { return $major -gt 2 }
+    if ($minor -ne 1) { return $minor -gt 1 }
+    return $patch -ge 63
+}
+
 function Register-Hooks {
     $settingsDir = "$env:USERPROFILE\.claude"
     $settingsPath = "$settingsDir\settings.json"
     $hookCmd = "$BinDir\grove-street.exe hook"
+    $useNested = Test-ClaudeNestedHooks
 
     New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
 
@@ -81,7 +102,11 @@ function Register-Hooks {
         $settings = Get-Content $settingsPath | ConvertFrom-Json -AsHashtable
     }
 
-    $hookEntry = @(@{ matcher = ""; command = $hookCmd })
+    if ($useNested) {
+        $hookEntry = @(@{ matcher = ""; hooks = @(@{ type = "command"; command = $hookCmd }) })
+    } else {
+        $hookEntry = @(@{ matcher = ""; command = $hookCmd })
+    }
     $hooks = @{
         Stop = $hookEntry
         Notification = $hookEntry
