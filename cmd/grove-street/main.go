@@ -778,10 +778,59 @@ func kiroConfigDir() string {
 
 // --- Hook registration ---
 
+// claudeCodeNestedHooksMinVersion is the minimum Claude Code version that
+// requires the nested hooks format ({"hooks": [{"type":"command","command":"..."}]}).
+// Versions before this use the flat format ({"command": "..."}).
+var claudeCodeNestedHooksMinVersion = [3]int{2, 1, 63}
+
+// getClaudeCodeVersion detects the installed Claude Code version by running "claude --version".
+// Returns the parsed (major, minor, patch) and true, or (0,0,0) and false if unavailable.
+func getClaudeCodeVersion() ([3]int, bool) {
+	out, err := exec.Command("claude", "--version").Output()
+	if err != nil {
+		return [3]int{}, false
+	}
+	// Output format: "2.1.80 (Claude Code)" or just "2.1.80"
+	vstr := strings.TrimSpace(strings.Split(string(out), " ")[0])
+	parts := strings.SplitN(vstr, ".", 3)
+	if len(parts) != 3 {
+		return [3]int{}, false
+	}
+	var v [3]int
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return [3]int{}, false
+		}
+		v[i] = n
+	}
+	return v, true
+}
+
+// claudeCodeUsesNestedHooks returns true if the installed Claude Code version
+// uses the nested hooks format, or defaults to true if version cannot be detected.
+func claudeCodeUsesNestedHooks() bool {
+	v, ok := getClaudeCodeVersion()
+	if !ok {
+		return true // default to new format
+	}
+	min := claudeCodeNestedHooksMinVersion
+	if v[0] != min[0] {
+		return v[0] > min[0]
+	}
+	if v[1] != min[1] {
+		return v[1] > min[1]
+	}
+	return v[2] >= min[2]
+}
+
 func registerClaudeHooks(binPath string) error {
 	settingsPath := filepath.Join(claudeConfigDir(), "settings.json")
 	events := []string{"SessionStart", "Stop", "Notification", "SubagentStop", "PreCompact", "PermissionRequest"}
-	return registerJSONHooksPerEvent(settingsPath, "hooks", binPath+" hook", events)
+	if claudeCodeUsesNestedHooks() {
+		return registerJSONHooksPerEvent(settingsPath, "hooks", binPath+" hook", events)
+	}
+	return registerJSONHooksPerEventFlat(settingsPath, "hooks", binPath+" hook", events)
 }
 
 func registerCursorHooks(binPath string) error {
@@ -854,6 +903,51 @@ func registerJSONHooksPerEvent(path, hooksKey, baseCmd string, events []string) 
 					"command": hookCmd,
 				},
 			},
+		}
+
+		var existing []interface{}
+		if arr, ok := hooksMap[event].([]interface{}); ok {
+			for _, h := range arr {
+				if containsGroveStreet(h) {
+					continue
+				}
+				existing = append(existing, h)
+			}
+		}
+		existing = append(existing, hookEntry)
+		hooksMap[event] = existing
+	}
+
+	settings[hooksKey] = hooksMap
+
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// registerJSONHooksPerEventFlat adds grove-street hook entries using the flat format
+// (pre-v2.1.63 Claude Code): {"matcher": "", "command": "..."}.
+func registerJSONHooksPerEventFlat(path, hooksKey, baseCmd string, events []string) error {
+	os.MkdirAll(filepath.Dir(path), 0755)
+
+	settings := make(map[string]interface{})
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &settings)
+	}
+
+	hooksMap, ok := settings[hooksKey].(map[string]interface{})
+	if !ok {
+		hooksMap = make(map[string]interface{})
+	}
+
+	for _, event := range events {
+		hookCmd := baseCmd + " --event " + event
+
+		hookEntry := map[string]interface{}{
+			"matcher": "",
+			"command": hookCmd,
 		}
 
 		var existing []interface{}
