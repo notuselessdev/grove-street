@@ -127,13 +127,18 @@ except:
     settings = {}
 
 hook_cmd = f"{bin} hook"
-hook_entry = [{"matcher": "", "command": hook_cmd}]
 hooks = settings.get("hooks", {})
 for event in ["Stop", "Notification", "SubagentStop", "PreCompact"]:
     existing = hooks.get(event, [])
-    existing = [h for h in existing if "grove-street" not in h.get("command", "")]
-    existing.append({"matcher": "", "command": hook_cmd})
-    hooks[event] = existing
+    filtered = []
+    for h in existing:
+        cmd = h.get("command", "")
+        nested = h.get("hooks", [])
+        nested_cmds = [n.get("command", "") for n in nested if isinstance(n, dict)]
+        if "grove-street" not in cmd and not any("grove-street" in c for c in nested_cmds):
+            filtered.append(h)
+    filtered.append({"matcher": "", "hooks": [{"type": "command", "command": hook_cmd}]})
+    hooks[event] = filtered
 settings["hooks"] = hooks
 with open(path, "w") as f:
     json.dump(settings, f, indent=2)
@@ -146,10 +151,10 @@ PYEOF
         cat > "$settings_path" <<JSONEOF
 {
   "hooks": {
-    "Stop": [{"matcher": "", "command": "$bin_path hook"}],
-    "Notification": [{"matcher": "", "command": "$bin_path hook"}],
-    "SubagentStop": [{"matcher": "", "command": "$bin_path hook"}],
-    "PreCompact": [{"matcher": "", "command": "$bin_path hook"}]
+    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}],
+    "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}],
+    "SubagentStop": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}],
+    "PreCompact": [{"matcher": "", "hooks": [{"type": "command", "command": "$bin_path hook"}]}]
   }
 }
 JSONEOF

@@ -81,7 +81,7 @@ function Register-Hooks {
         $settings = Get-Content $settingsPath | ConvertFrom-Json -AsHashtable
     }
 
-    $hookEntry = @(@{ matcher = ""; command = $hookCmd })
+    $hookEntry = @(@{ matcher = ""; hooks = @(@{ type = "command"; command = $hookCmd }) })
     $hooks = @{
         Stop = $hookEntry
         Notification = $hookEntry
