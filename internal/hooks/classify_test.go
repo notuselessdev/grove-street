@@ -10,6 +10,7 @@ func TestClassify(t *testing.T) {
 	}{
 		// Session start
 		{"session start", Event{Type: "SessionStart"}, "session_start"},
+		{"subagent start", Event{Type: "SubagentStart"}, "session_start"},
 
 		// Stop events
 		{"stop end_turn", Event{Type: "Stop", StopReason: "end_turn"}, "task_complete"},

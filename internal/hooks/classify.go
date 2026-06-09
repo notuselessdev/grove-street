@@ -20,7 +20,7 @@ func Classify(e Event) string {
 	}
 
 	switch hookType {
-	case "SessionStart":
+	case "SessionStart", "SubagentStart":
 		return "session_start"
 
 	case "Stop", "SubagentStop":
