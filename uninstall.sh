@@ -37,8 +37,16 @@ except:
 
 hooks = settings.get("hooks", {})
 for event in list(hooks.keys()):
-    hooks[event] = [h for h in hooks[event] if "grove-street" not in h.get("command", "")]
-    if not hooks[event]:
+    filtered = []
+    for h in hooks[event]:
+        cmd = h.get("command", "")
+        nested = h.get("hooks", [])
+        nested_cmds = [n.get("command", "") for n in nested if isinstance(n, dict)]
+        if "grove-street" not in cmd and not any("grove-street" in c for c in nested_cmds):
+            filtered.append(h)
+    if filtered:
+        hooks[event] = filtered
+    else:
         del hooks[event]
 if hooks:
     settings["hooks"] = hooks

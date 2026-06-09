@@ -656,6 +656,59 @@ func TestHookEntryHasCmd(t *testing.T) {
 	}
 }
 
+func TestRegisterJSONHooksPerEventFlat(t *testing.T) {
+	tmpDir := t.TempDir()
+	settingsPath := filepath.Join(tmpDir, "settings.json")
+
+	err := registerJSONHooksPerEventFlat(settingsPath, "hooks", "grove-street hook", []string{"Stop", "SessionStart"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatal(err)
+	}
+
+	hooksMap, ok := settings["hooks"].(map[string]interface{})
+	if !ok {
+		t.Fatal("hooks key missing or not a map")
+	}
+
+	for _, event := range []string{"Stop", "SessionStart"} {
+		arr, ok := hooksMap[event].([]interface{})
+		if !ok || len(arr) == 0 {
+			t.Fatalf("hooks[%q] missing or empty", event)
+		}
+		entry, ok := arr[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hooks[%q][0] is not a map", event)
+		}
+		// Flat format should have "command" directly, not nested "hooks"
+		if _, hasNested := entry["hooks"]; hasNested {
+			t.Errorf("hooks[%q] should use flat format, but has nested 'hooks' key", event)
+		}
+		cmd, ok := entry["command"].(string)
+		if !ok || cmd == "" {
+			t.Errorf("hooks[%q] missing flat 'command' field", event)
+		}
+	}
+
+	// Unregister and verify cleanup works for flat format too
+	unregisterJSONHooks(settingsPath, "hooks")
+	data, _ = os.ReadFile(settingsPath)
+	var afterUnregister map[string]interface{}
+	json.Unmarshal(data, &afterUnregister)
+	if _, ok := afterUnregister["hooks"]; ok {
+		t.Error("hooks should be removed after unregister")
+	}
+}
+
 func TestHookArrayContainsCmd(t *testing.T) {
 	arr := []interface{}{
 		map[string]interface{}{"command": "grove-street hook --source kiro"},
